@@ -45,7 +45,7 @@ npm run dev
 Terminal 1 - Agent:
 ```bash
 cd agent
-python server.py
+python3 server.py
 ```
 
 Terminal 2 - UI:
