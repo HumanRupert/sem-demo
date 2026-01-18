@@ -29,8 +29,16 @@ npm install
 # Install UI dependencies
 cd ui && npm install && cd ..
 
-# Install Python agent dependencies
-cd agent && pip install -e . && cd ..
+# Set up Python virtual environment and install agent dependencies
+cd agent
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cd ..
+
+# Copy environment file and add your API key
+cp agent/.env.example agent/.env
+# Edit agent/.env with your GOOGLE_API_KEY
 ```
 
 ### Running the App
@@ -45,6 +53,7 @@ npm run dev
 Terminal 1 - Agent:
 ```bash
 cd agent
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 python3 server.py
 ```
 
