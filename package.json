@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev:agent\" \"npm run dev:ui\"",
-    "dev:agent": "cd agent && adk api_server --port 8000",
+    "dev:agent": "cd agent && python server.py",
     "dev:ui": "cd ui && npm run dev",
     "install:all": "npm install && cd ui && npm install && cd ../agent && pip install -e ."
   },

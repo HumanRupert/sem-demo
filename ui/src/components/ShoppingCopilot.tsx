@@ -187,7 +187,7 @@ interface ShoppingCopilotProps {
 export function ShoppingCopilot({ children }: ShoppingCopilotProps) {
   return (
     <CopilotKit
-      runtimeUrl="http://localhost:8000"
+      runtimeUrl="/api/copilotkit"
       agent="shopping_assistant"
     >
       <CopilotActions />

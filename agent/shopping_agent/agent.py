@@ -6,7 +6,7 @@ product search and browsing capabilities through natural conversation.
 """
 
 from google.adk.agents import LlmAgent
-from google.adk.tools.mcp_tool import MCPToolset, SseServerParams
+from google.adk.tools.mcp_tool import MCPToolset, SseConnectionParams
 
 # Shopify Storefront MCP configuration for Allbirds store
 SHOPIFY_MCP_URL = "https://mcp.shopify.com/allbirds.com/sse"
@@ -54,7 +54,7 @@ root_agent = LlmAgent(
     instruction=SYSTEM_PROMPT,
     tools=[
         MCPToolset(
-            connection_params=SseServerParams(
+            connection_params=SseConnectionParams(
                 url=SHOPIFY_MCP_URL,
             )
         )
