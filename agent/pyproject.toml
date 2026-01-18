@@ -1,0 +1,13 @@
+[project]
+name = "shopping-agent"
+version = "0.1.0"
+description = "AI Shopping Agent with Shopify MCP integration"
+requires-python = ">=3.10"
+dependencies = [
+    "google-adk>=0.3.0",
+    "mcp>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

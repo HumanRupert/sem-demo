@@ -1,0 +1,14 @@
+{
+  "name": "sem-demo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:agent\" \"npm run dev:ui\"",
+    "dev:agent": "cd agent && adk api_server --port 8000",
+    "dev:ui": "cd ui && npm run dev",
+    "install:all": "npm install && cd ui && npm install && cd ../agent && pip install -e ."
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
