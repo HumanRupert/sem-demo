@@ -10,7 +10,7 @@ from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 
 # Shopify Storefront MCP configuration for Allbirds store
 # Using StreamableHTTP transport (recommended for remote MCP servers)
-SHOPIFY_MCP_URL = "https://mcp.shopify.com/allbirds.com/mcp"
+SHOPIFY_MCP_URL = "https://www.allbirds.com/api/mcp"
 
 SYSTEM_PROMPT = """You are a friendly and knowledgeable shopping assistant for Allbirds,
 a sustainable footwear and apparel brand. Your role is to help customers discover products,
