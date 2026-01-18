@@ -6,10 +6,11 @@ product search and browsing capabilities through natural conversation.
 """
 
 from google.adk.agents import LlmAgent
-from google.adk.tools.mcp_tool import MCPToolset, SseConnectionParams
+from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 
 # Shopify Storefront MCP configuration for Allbirds store
-SHOPIFY_MCP_URL = "https://mcp.shopify.com/allbirds.com/sse"
+# Using StreamableHTTP transport (recommended for remote MCP servers)
+SHOPIFY_MCP_URL = "https://mcp.shopify.com/allbirds.com/mcp"
 
 SYSTEM_PROMPT = """You are a friendly and knowledgeable shopping assistant for Allbirds,
 a sustainable footwear and apparel brand. Your role is to help customers discover products,
@@ -54,7 +55,7 @@ root_agent = LlmAgent(
     instruction=SYSTEM_PROMPT,
     tools=[
         MCPToolset(
-            connection_params=SseConnectionParams(
+            connection_params=StreamableHTTPConnectionParams(
                 url=SHOPIFY_MCP_URL,
             )
         )
