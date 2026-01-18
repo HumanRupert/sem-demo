@@ -45,7 +45,7 @@ npm run dev
 Terminal 1 - Agent:
 ```bash
 cd agent
-adk api_server --port 8000
+python server.py
 ```
 
 Terminal 2 - UI:
@@ -73,11 +73,15 @@ sem-demo/
 │   ├── shopping_agent/
 │   │   ├── __init__.py
 │   │   └── agent.py          # Main agent with MCP integration
-│   ├── .env                  # Environment variables
+│   ├── server.py             # FastAPI server with AG-UI protocol
+│   ├── .env                  # Environment variables (gitignored)
+│   ├── .env.example          # Environment template
 │   └── pyproject.toml        # Python dependencies
 ├── ui/                       # Next.js Frontend
 │   ├── src/
-│   │   ├── app/              # Next.js app router
+│   │   ├── app/
+│   │   │   ├── api/copilotkit/ # CopilotKit API route
+│   │   │   └── ...           # Next.js app router
 │   │   ├── components/       # React components
 │   │   ├── context/          # Cart context
 │   │   └── lib/              # Utilities
