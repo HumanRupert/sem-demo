@@ -179,43 +179,18 @@ function GenerativeUI() {
   useRenderToolCall({
     name: "search_shop_catalog",
     render: ({ status, result }) => {
-      // Debug log to see what we're getting
       console.log("[GenerativeUI] search_shop_catalog status:", status, "result:", result);
 
-      // Check for loading state - handle various status values
-      const isLoading = status === "executing" || status === "inProgress" || status === "pending";
-      const isComplete = status === "complete" || status === "completed" || status === "success" || result !== undefined;
-
-      if (isLoading && !result) {
-        return (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl my-2"
-          >
-            <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-black" />
-            <span className="text-gray-600">Searching products...</span>
-          </motion.div>
-        );
+      // Only show our custom UI when we have results
+      // This prevents the duplicate spinner issue - let CopilotChat handle loading
+      if (!result) {
+        return null; // Let CopilotChat show default loading
       }
 
       // Parse the result to extract products
       const products = parseSearchResults(result);
 
       if (!products || products.length === 0) {
-        // If no result yet and not explicitly complete, show loading
-        if (!isComplete && !result) {
-          return (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl my-2"
-            >
-              <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-black" />
-              <span className="text-gray-600">Searching products...</span>
-            </motion.div>
-          );
-        }
         return (
           <div className="p-4 bg-gray-50 rounded-xl my-2 text-gray-500">
             No products found. Try a different search term.
@@ -241,37 +216,14 @@ function GenerativeUI() {
     render: ({ status, result }) => {
       console.log("[GenerativeUI] get_product_details status:", status, "result:", result);
 
-      const isLoading = status === "executing" || status === "inProgress" || status === "pending";
-      const isComplete = status === "complete" || status === "completed" || status === "success" || result !== undefined;
-
-      if (isLoading && !result) {
-        return (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl my-2"
-          >
-            <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-black" />
-            <span className="text-gray-600">Loading product details...</span>
-          </motion.div>
-        );
+      // Only show our custom UI when we have results
+      if (!result) {
+        return null; // Let CopilotChat show default loading
       }
 
       const product = parseProductDetails(result);
 
       if (!product) {
-        if (!isComplete && !result) {
-          return (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl my-2"
-            >
-              <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-black" />
-              <span className="text-gray-600">Loading product details...</span>
-            </motion.div>
-          );
-        }
         return (
           <div className="p-4 bg-gray-50 rounded-xl my-2 text-gray-500">
             Could not load product details.
@@ -304,18 +256,24 @@ function extractImageUrl(imageData: unknown): string | undefined {
 
   if (typeof imageData === "object" && imageData !== null) {
     const img = imageData as Record<string, unknown>;
-    return (img.src || img.url || img.originalSrc || img.transformedSrc) as string | undefined;
+    // Try various common field names for image URLs
+    return (img.url || img.src || img.originalSrc || img.transformedSrc ||
+            img.imageUrl || img.image_url) as string | undefined;
   }
 
   return undefined;
 }
 
-// Helper function to parse search results from MCP response
+// Helper function to parse search results from Storefront MCP response
+// Response format from search_shop_catalog includes:
+// - Product name, price, currency
+// - Variant ID for cart operations
+// - Product URL and image URL
+// - Product description
 function parseSearchResults(result: unknown): Product[] {
   console.log("[parseSearchResults] Raw result:", result);
 
   try {
-    // Handle various response formats from Shopify MCP
     let data = result;
 
     // If result is a string, try to parse it as JSON
@@ -323,13 +281,11 @@ function parseSearchResults(result: unknown): Product[] {
       try {
         data = JSON.parse(data);
       } catch {
-        // If it's not JSON, it might be a plain text response
         console.log("[parseSearchResults] Could not parse string as JSON");
         return [];
       }
     }
 
-    // Handle the response structure
     const response = data as Record<string, unknown>;
 
     // Try to find products array in various possible locations
@@ -344,7 +300,7 @@ function parseSearchResults(result: unknown): Product[] {
     } else if (response?.result && Array.isArray(response.result)) {
       products = response.result;
     } else if (response?.content) {
-      // MCP tool responses often have a content array
+      // MCP tool responses have a content array with text
       const content = response.content as unknown[];
       if (Array.isArray(content) && content[0]) {
         const textContent = content[0] as Record<string, unknown>;
@@ -357,6 +313,8 @@ function parseSearchResults(result: unknown): Product[] {
               products = parsed.products;
             } else if (parsed?.data?.products) {
               products = parsed.data.products;
+            } else if (parsed?.result && Array.isArray(parsed.result)) {
+              products = parsed.result;
             }
           } catch {
             console.log("[parseSearchResults] Could not parse content text as JSON");
@@ -366,15 +324,16 @@ function parseSearchResults(result: unknown): Product[] {
       }
     }
 
-    console.log("[parseSearchResults] Found products array:", products.length);
+    console.log("[parseSearchResults] Found products array:", products.length, products);
 
     // Map products to our Product interface
+    // Storefront MCP response fields: name/title, price, currency, variantId, productUrl, imageUrl, description
     return products.map((p: unknown) => {
       const product = p as Record<string, unknown>;
 
-      // Extract price from various formats
+      // Extract price - Storefront MCP provides price directly
       let price: string | undefined;
-      if (product.price) {
+      if (product.price !== undefined) {
         price = String(product.price);
       } else if (product.priceRange) {
         const priceRange = product.priceRange as Record<string, unknown>;
@@ -382,69 +341,60 @@ function parseSearchResults(result: unknown): Product[] {
         if (minPrice?.amount) {
           price = String(minPrice.amount);
         }
-      } else if (product.variants && Array.isArray(product.variants) && product.variants[0]) {
-        const firstVariant = product.variants[0] as Record<string, unknown>;
-        if (firstVariant.price) {
-          const variantPrice = firstVariant.price;
-          if (typeof variantPrice === "object" && variantPrice !== null) {
-            price = String((variantPrice as Record<string, unknown>).amount || variantPrice);
-          } else {
-            price = String(variantPrice);
-          }
-        }
       }
 
-      // Extract image from various formats
-      let image: string | undefined;
-      if (product.image) {
-        image = extractImageUrl(product.image);
+      // Extract image URL - Storefront MCP provides imageUrl directly
+      let imageUrl: string | undefined;
+      if (product.imageUrl) {
+        imageUrl = String(product.imageUrl);
+      } else if (product.image_url) {
+        imageUrl = String(product.image_url);
+      } else if (product.image) {
+        imageUrl = extractImageUrl(product.image);
       } else if (product.featuredImage) {
-        image = extractImageUrl(product.featuredImage);
-      } else if (product.images) {
-        if (Array.isArray(product.images) && product.images.length > 0) {
-          const firstImage = product.images[0];
-          if (typeof firstImage === "object" && firstImage !== null) {
-            const imgObj = firstImage as Record<string, unknown>;
-            // Handle edges/node structure from GraphQL
-            if (imgObj.edges && Array.isArray(imgObj.edges)) {
-              const firstEdge = imgObj.edges[0] as Record<string, unknown>;
-              image = extractImageUrl(firstEdge?.node);
-            } else {
-              image = extractImageUrl(firstImage);
-            }
-          } else {
-            image = extractImageUrl(firstImage);
-          }
-        } else if (typeof product.images === "object") {
-          const imagesObj = product.images as Record<string, unknown>;
-          if (imagesObj.edges && Array.isArray(imagesObj.edges) && imagesObj.edges[0]) {
-            const firstEdge = imagesObj.edges[0] as Record<string, unknown>;
-            image = extractImageUrl(firstEdge?.node);
-          }
-        }
+        imageUrl = extractImageUrl(product.featuredImage);
+      } else if (product.images && Array.isArray(product.images) && product.images[0]) {
+        imageUrl = extractImageUrl(product.images[0]);
       }
 
-      const mapped = {
-        id: String(product.id || product.product_id || ""),
+      // Extract product URL - Storefront MCP provides productUrl directly
+      let productUrl: string | undefined;
+      if (product.productUrl) {
+        productUrl = String(product.productUrl);
+      } else if (product.product_url) {
+        productUrl = String(product.product_url);
+      } else if (product.url) {
+        productUrl = String(product.url);
+      }
+
+      // Extract variant ID - Storefront MCP provides variantId for cart operations
+      let variantId: string | undefined;
+      if (product.variantId) {
+        variantId = String(product.variantId);
+      } else if (product.variant_id) {
+        variantId = String(product.variant_id);
+      }
+
+      const mapped: Product = {
+        id: String(product.id || product.product_id || product.variantId || ""),
         title: String(product.title || product.name || ""),
         description: product.description ? String(product.description) : undefined,
         handle: product.handle ? String(product.handle) : undefined,
-        vendor: product.vendor ? String(product.vendor) : "Allbirds",
+        vendor: product.vendor ? String(product.vendor) : undefined,
         productType: (product.productType || product.product_type) ? String(product.productType || product.product_type) : undefined,
         price,
-        image,
+        currency: product.currency ? String(product.currency) : undefined,
+        imageUrl, // Direct image URL from Storefront MCP
+        productUrl, // Direct product URL from Storefront MCP
+        variantId, // Variant ID for cart operations
         variants: product.variants && Array.isArray(product.variants) ? (product.variants as unknown[]).map((v: unknown) => {
           const variant = v as Record<string, unknown>;
           let variantPrice = "";
-          if (variant.price) {
-            if (typeof variant.price === "object" && variant.price !== null) {
-              variantPrice = String((variant.price as Record<string, unknown>).amount || "");
-            } else {
-              variantPrice = String(variant.price);
-            }
+          if (variant.price !== undefined) {
+            variantPrice = String(variant.price);
           }
           return {
-            id: String(variant.id || ""),
+            id: String(variant.id || variant.variantId || ""),
             title: String(variant.title || ""),
             price: variantPrice,
             available: Boolean(variant.available ?? variant.availableForSale ?? true),
@@ -452,16 +402,16 @@ function parseSearchResults(result: unknown): Product[] {
         }) : undefined,
       };
 
-      console.log("[parseSearchResults] Mapped product:", mapped.title, "image:", mapped.image);
+      console.log("[parseSearchResults] Mapped product:", mapped.title, "imageUrl:", mapped.imageUrl, "productUrl:", mapped.productUrl);
       return mapped;
-    }).filter((p) => p.id && p.title);
+    }).filter((p) => p.id || p.title);
   } catch (e) {
     console.error("Error parsing search results:", e, result);
     return [];
   }
 }
 
-// Helper function to parse single product details from MCP response
+// Helper function to parse single product details from Storefront MCP response
 function parseProductDetails(result: unknown): Product | null {
   console.log("[parseProductDetails] Raw result:", result);
 
@@ -497,15 +447,15 @@ function parseProductDetails(result: unknown): Product | null {
           }
         }
       }
-    } else if (response?.id || response?.title) {
+    } else if (response?.id || response?.title || response?.name) {
       product = response;
     }
 
     if (!product) return null;
 
-    // Extract price
+    // Extract price - Storefront MCP provides price directly
     let price: string | undefined;
-    if (product.price) {
+    if (product.price !== undefined) {
       price = String(product.price);
     } else if (product.priceRange) {
       const priceRange = product.priceRange as Record<string, unknown>;
@@ -515,37 +465,58 @@ function parseProductDetails(result: unknown): Product | null {
       }
     }
 
-    // Extract image
-    let image: string | undefined;
-    if (product.image) {
-      image = extractImageUrl(product.image);
+    // Extract image URL - Storefront MCP provides imageUrl directly
+    let imageUrl: string | undefined;
+    if (product.imageUrl) {
+      imageUrl = String(product.imageUrl);
+    } else if (product.image_url) {
+      imageUrl = String(product.image_url);
+    } else if (product.image) {
+      imageUrl = extractImageUrl(product.image);
     } else if (product.featuredImage) {
-      image = extractImageUrl(product.featuredImage);
+      imageUrl = extractImageUrl(product.featuredImage);
     } else if (product.images && Array.isArray(product.images) && product.images[0]) {
-      image = extractImageUrl(product.images[0]);
+      imageUrl = extractImageUrl(product.images[0]);
     }
 
-    const mapped = {
-      id: String(product.id || ""),
-      title: String(product.title || ""),
+    // Extract product URL - Storefront MCP provides productUrl directly
+    let productUrl: string | undefined;
+    if (product.productUrl) {
+      productUrl = String(product.productUrl);
+    } else if (product.product_url) {
+      productUrl = String(product.product_url);
+    } else if (product.url) {
+      productUrl = String(product.url);
+    }
+
+    // Extract variant ID
+    let variantId: string | undefined;
+    if (product.variantId) {
+      variantId = String(product.variantId);
+    } else if (product.variant_id) {
+      variantId = String(product.variant_id);
+    }
+
+    const mapped: Product = {
+      id: String(product.id || product.variantId || ""),
+      title: String(product.title || product.name || ""),
       description: product.description ? String(product.description) : undefined,
       handle: product.handle ? String(product.handle) : undefined,
-      vendor: product.vendor ? String(product.vendor) : "Allbirds",
+      vendor: product.vendor ? String(product.vendor) : undefined,
       productType: (product.productType || product.product_type) ? String(product.productType || product.product_type) : undefined,
       price,
-      image,
+      currency: product.currency ? String(product.currency) : undefined,
+      imageUrl,
+      productUrl,
+      variantId,
       variants: product.variants && Array.isArray(product.variants) ? (product.variants as unknown[]).map((v: unknown) => {
         const variant = v as Record<string, unknown>;
         let variantPrice = "";
-        if (variant.price) {
-          if (typeof variant.price === "object" && variant.price !== null) {
-            variantPrice = String((variant.price as Record<string, unknown>).amount || "");
-          } else {
-            variantPrice = String(variant.price);
-          }
+        if (variant.price !== undefined) {
+          variantPrice = String(variant.price);
         }
         return {
-          id: String(variant.id || ""),
+          id: String(variant.id || variant.variantId || ""),
           title: String(variant.title || ""),
           price: variantPrice,
           available: Boolean(variant.available ?? variant.availableForSale ?? true),
@@ -553,7 +524,7 @@ function parseProductDetails(result: unknown): Product | null {
       }) : undefined,
     };
 
-    console.log("[parseProductDetails] Mapped product:", mapped.title, "image:", mapped.image);
+    console.log("[parseProductDetails] Mapped product:", mapped.title, "imageUrl:", mapped.imageUrl, "productUrl:", mapped.productUrl);
     return mapped;
   } catch (e) {
     console.error("Error parsing product details:", e, result);

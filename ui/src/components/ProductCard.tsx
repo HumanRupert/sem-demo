@@ -19,9 +19,13 @@ export interface Product {
   vendor?: string;
   productType?: string;
   price?: string;
+  currency?: string;
   compareAtPrice?: string;
   image?: string;
+  imageUrl?: string; // Direct image URL from Storefront MCP
   images?: string[];
+  productUrl?: string; // Direct product URL from Storefront MCP
+  variantId?: string; // Variant ID for cart operations
   variants?: ProductVariant[];
 }
 
@@ -30,22 +34,20 @@ interface ProductCardProps {
   onAddToCart?: (product: Product, variant?: ProductVariant) => void;
 }
 
-// Construct the product URL for Allbirds
-function getProductUrl(product: Product): string {
-  if (product.handle) {
-    return `https://www.allbirds.com/products/${product.handle}`;
-  }
-  // Fallback: search for the product
-  return `https://www.allbirds.com/search?q=${encodeURIComponent(product.title)}`;
-}
-
 export function ProductCard({ product, onAddToCart }: ProductCardProps) {
   const price = product.price || product.variants?.[0]?.price || "0";
+
+  // Use imageUrl from Storefront MCP first, then fallback to other image fields
   const imageUrl =
+    product.imageUrl ||
     product.image ||
     product.images?.[0] ||
     "https://cdn.shopify.com/s/files/1/0018/0819/6657/files/placeholder.png";
-  const productUrl = getProductUrl(product);
+
+  // Use productUrl from Storefront MCP directly, or construct from handle
+  const productUrl = product.productUrl ||
+    (product.handle ? `https://www.allbirds.com/products/${product.handle}` :
+    `https://www.allbirds.com/search?q=${encodeURIComponent(product.title)}`);
 
   return (
     <motion.a
