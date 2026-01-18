@@ -173,13 +173,14 @@ function CopilotActions() {
   return null;
 }
 
-// Generative UI hooks for MCP tools
+// Generative UI hooks for agent tools
 function GenerativeUI() {
-  // Render search_shop_catalog tool results as a product grid
+  // Render search_products tool results as a product grid
+  // This tool returns LLM-filtered results for relevance
   useRenderToolCall({
-    name: "search_shop_catalog",
+    name: "search_products",
     render: ({ status, result }) => {
-      console.log("[GenerativeUI] search_shop_catalog status:", status, "result:", result);
+      console.log("[GenerativeUI] search_products status:", status, "result:", result);
 
       // Only show our custom UI when we have results
       // This prevents the duplicate spinner issue - let CopilotChat handle loading
@@ -264,12 +265,12 @@ function extractImageUrl(imageData: unknown): string | undefined {
   return undefined;
 }
 
-// Helper function to parse search results from Storefront MCP response
-// Response format from search_shop_catalog includes:
-// - Product name, price, currency
-// - Variant ID for cart operations
-// - Product URL and image URL
-// - Product description
+// Helper function to parse search results from search_products tool
+// The custom search_products tool returns:
+// - products: array of filtered products
+// - total_found: total products from MCP
+// - total_relevant: filtered count
+// - query: the search query
 function parseSearchResults(result: unknown): Product[] {
   console.log("[parseSearchResults] Raw result:", result);
 
@@ -291,10 +292,12 @@ function parseSearchResults(result: unknown): Product[] {
     // Try to find products array in various possible locations
     let products: unknown[] = [];
 
-    if (Array.isArray(response)) {
-      products = response;
-    } else if (response?.products && Array.isArray(response.products)) {
+    // First check for our custom search_products tool response format
+    if (response?.products && Array.isArray(response.products)) {
       products = response.products;
+      console.log(`[parseSearchResults] Found ${products.length} relevant products out of ${response.total_found || 'unknown'} total`);
+    } else if (Array.isArray(response)) {
+      products = response;
     } else if (response?.data?.products && Array.isArray(response.data.products)) {
       products = response.data.products;
     } else if (response?.result && Array.isArray(response.result)) {
