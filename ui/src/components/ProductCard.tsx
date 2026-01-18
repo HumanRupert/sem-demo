@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { formatPrice } from "@/lib/utils";
+import { ExternalLink } from "lucide-react";
 
 export interface ProductVariant {
   id: string;
@@ -30,27 +30,50 @@ interface ProductCardProps {
   onAddToCart?: (product: Product, variant?: ProductVariant) => void;
 }
 
+// Construct the product URL for Allbirds
+function getProductUrl(product: Product): string {
+  if (product.handle) {
+    return `https://www.allbirds.com/products/${product.handle}`;
+  }
+  // Fallback: search for the product
+  return `https://www.allbirds.com/search?q=${encodeURIComponent(product.title)}`;
+}
+
 export function ProductCard({ product, onAddToCart }: ProductCardProps) {
   const price = product.price || product.variants?.[0]?.price || "0";
   const imageUrl =
     product.image ||
     product.images?.[0] ||
     "https://cdn.shopify.com/s/files/1/0018/0819/6657/files/placeholder.png";
+  const productUrl = getProductUrl(product);
 
   return (
-    <motion.div
+    <motion.a
+      href={productUrl}
+      target="_blank"
+      rel="noopener noreferrer"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="group relative flex flex-col bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-gray-200 transition-all duration-300"
+      className="group relative flex flex-col bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-gray-200 transition-all duration-300 cursor-pointer"
     >
-      <div className="aspect-square relative overflow-hidden bg-gray-50">
-        <Image
+      {/* External link indicator */}
+      <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-sm">
+          <ExternalLink className="w-4 h-4 text-gray-600" />
+        </div>
+      </div>
+
+      <div className="aspect-square relative overflow-hidden bg-gray-100">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={imageUrl}
           alt={product.title}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-500"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={(e) => {
+            // Fallback if image fails to load
+            (e.target as HTMLImageElement).src = "https://cdn.shopify.com/s/files/1/0018/0819/6657/files/placeholder.png";
+          }}
         />
         {product.compareAtPrice && (
           <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-medium px-2 py-1 rounded-full">
@@ -65,7 +88,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
             {product.vendor}
           </p>
         )}
-        <h3 className="font-medium text-gray-900 line-clamp-2 mb-2">
+        <h3 className="font-medium text-gray-900 line-clamp-2 mb-2 group-hover:text-green-700 transition-colors">
           {product.title}
         </h3>
         {product.description && (
@@ -91,7 +114,7 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
           </p>
         )}
       </div>
-    </motion.div>
+    </motion.a>
   );
 }
 

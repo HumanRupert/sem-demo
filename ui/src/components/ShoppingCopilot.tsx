@@ -179,7 +179,14 @@ function GenerativeUI() {
   useRenderToolCall({
     name: "search_shop_catalog",
     render: ({ status, result }) => {
-      if (status !== "complete") {
+      // Debug log to see what we're getting
+      console.log("[GenerativeUI] search_shop_catalog status:", status, "result:", result);
+
+      // Check for loading state - handle various status values
+      const isLoading = status === "executing" || status === "inProgress" || status === "pending";
+      const isComplete = status === "complete" || status === "completed" || status === "success" || result !== undefined;
+
+      if (isLoading && !result) {
         return (
           <motion.div
             initial={{ opacity: 0 }}
@@ -196,6 +203,19 @@ function GenerativeUI() {
       const products = parseSearchResults(result);
 
       if (!products || products.length === 0) {
+        // If no result yet and not explicitly complete, show loading
+        if (!isComplete && !result) {
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl my-2"
+            >
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-black" />
+              <span className="text-gray-600">Searching products...</span>
+            </motion.div>
+          );
+        }
         return (
           <div className="p-4 bg-gray-50 rounded-xl my-2 text-gray-500">
             No products found. Try a different search term.
@@ -219,7 +239,12 @@ function GenerativeUI() {
   useRenderToolCall({
     name: "get_product_details",
     render: ({ status, result }) => {
-      if (status !== "complete") {
+      console.log("[GenerativeUI] get_product_details status:", status, "result:", result);
+
+      const isLoading = status === "executing" || status === "inProgress" || status === "pending";
+      const isComplete = status === "complete" || status === "completed" || status === "success" || result !== undefined;
+
+      if (isLoading && !result) {
         return (
           <motion.div
             initial={{ opacity: 0 }}
@@ -235,6 +260,18 @@ function GenerativeUI() {
       const product = parseProductDetails(result);
 
       if (!product) {
+        if (!isComplete && !result) {
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl my-2"
+            >
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-black" />
+              <span className="text-gray-600">Loading product details...</span>
+            </motion.div>
+          );
+        }
         return (
           <div className="p-4 bg-gray-50 rounded-xl my-2 text-gray-500">
             Could not load product details.
@@ -257,8 +294,26 @@ function GenerativeUI() {
   return null;
 }
 
+// Helper function to extract image URL from various formats
+function extractImageUrl(imageData: unknown): string | undefined {
+  if (!imageData) return undefined;
+
+  if (typeof imageData === "string") {
+    return imageData;
+  }
+
+  if (typeof imageData === "object" && imageData !== null) {
+    const img = imageData as Record<string, unknown>;
+    return (img.src || img.url || img.originalSrc || img.transformedSrc) as string | undefined;
+  }
+
+  return undefined;
+}
+
 // Helper function to parse search results from MCP response
 function parseSearchResults(result: unknown): Product[] {
+  console.log("[parseSearchResults] Raw result:", result);
+
   try {
     // Handle various response formats from Shopify MCP
     let data = result;
@@ -268,6 +323,8 @@ function parseSearchResults(result: unknown): Product[] {
       try {
         data = JSON.parse(data);
       } catch {
+        // If it's not JSON, it might be a plain text response
+        console.log("[parseSearchResults] Could not parse string as JSON");
         return [];
       }
     }
@@ -298,36 +355,105 @@ function parseSearchResults(result: unknown): Product[] {
               products = parsed;
             } else if (parsed?.products) {
               products = parsed.products;
+            } else if (parsed?.data?.products) {
+              products = parsed.data.products;
             }
           } catch {
+            console.log("[parseSearchResults] Could not parse content text as JSON");
             return [];
           }
         }
       }
     }
 
+    console.log("[parseSearchResults] Found products array:", products.length);
+
     // Map products to our Product interface
     return products.map((p: unknown) => {
       const product = p as Record<string, unknown>;
-      return {
+
+      // Extract price from various formats
+      let price: string | undefined;
+      if (product.price) {
+        price = String(product.price);
+      } else if (product.priceRange) {
+        const priceRange = product.priceRange as Record<string, unknown>;
+        const minPrice = priceRange.minVariantPrice as Record<string, unknown> | undefined;
+        if (minPrice?.amount) {
+          price = String(minPrice.amount);
+        }
+      } else if (product.variants && Array.isArray(product.variants) && product.variants[0]) {
+        const firstVariant = product.variants[0] as Record<string, unknown>;
+        if (firstVariant.price) {
+          const variantPrice = firstVariant.price;
+          if (typeof variantPrice === "object" && variantPrice !== null) {
+            price = String((variantPrice as Record<string, unknown>).amount || variantPrice);
+          } else {
+            price = String(variantPrice);
+          }
+        }
+      }
+
+      // Extract image from various formats
+      let image: string | undefined;
+      if (product.image) {
+        image = extractImageUrl(product.image);
+      } else if (product.featuredImage) {
+        image = extractImageUrl(product.featuredImage);
+      } else if (product.images) {
+        if (Array.isArray(product.images) && product.images.length > 0) {
+          const firstImage = product.images[0];
+          if (typeof firstImage === "object" && firstImage !== null) {
+            const imgObj = firstImage as Record<string, unknown>;
+            // Handle edges/node structure from GraphQL
+            if (imgObj.edges && Array.isArray(imgObj.edges)) {
+              const firstEdge = imgObj.edges[0] as Record<string, unknown>;
+              image = extractImageUrl(firstEdge?.node);
+            } else {
+              image = extractImageUrl(firstImage);
+            }
+          } else {
+            image = extractImageUrl(firstImage);
+          }
+        } else if (typeof product.images === "object") {
+          const imagesObj = product.images as Record<string, unknown>;
+          if (imagesObj.edges && Array.isArray(imagesObj.edges) && imagesObj.edges[0]) {
+            const firstEdge = imagesObj.edges[0] as Record<string, unknown>;
+            image = extractImageUrl(firstEdge?.node);
+          }
+        }
+      }
+
+      const mapped = {
         id: String(product.id || product.product_id || ""),
         title: String(product.title || product.name || ""),
         description: product.description ? String(product.description) : undefined,
         handle: product.handle ? String(product.handle) : undefined,
         vendor: product.vendor ? String(product.vendor) : "Allbirds",
-        productType: product.productType || product.product_type ? String(product.productType || product.product_type) : undefined,
-        price: product.price ? String(product.price) : (product.priceRange?.minVariantPrice?.amount ? String(product.priceRange.minVariantPrice.amount) : undefined),
-        image: product.image ? (typeof product.image === "string" ? product.image : (product.image as Record<string, unknown>)?.src || (product.image as Record<string, unknown>)?.url) as string : (product.images && Array.isArray(product.images) && product.images[0]) ? String((product.images[0] as Record<string, unknown>)?.src || product.images[0]) : undefined,
-        variants: product.variants ? (product.variants as unknown[]).map((v: unknown) => {
+        productType: (product.productType || product.product_type) ? String(product.productType || product.product_type) : undefined,
+        price,
+        image,
+        variants: product.variants && Array.isArray(product.variants) ? (product.variants as unknown[]).map((v: unknown) => {
           const variant = v as Record<string, unknown>;
+          let variantPrice = "";
+          if (variant.price) {
+            if (typeof variant.price === "object" && variant.price !== null) {
+              variantPrice = String((variant.price as Record<string, unknown>).amount || "");
+            } else {
+              variantPrice = String(variant.price);
+            }
+          }
           return {
             id: String(variant.id || ""),
             title: String(variant.title || ""),
-            price: String(variant.price || ""),
+            price: variantPrice,
             available: Boolean(variant.available ?? variant.availableForSale ?? true),
           };
         }) : undefined,
       };
+
+      console.log("[parseSearchResults] Mapped product:", mapped.title, "image:", mapped.image);
+      return mapped;
     }).filter((p) => p.id && p.title);
   } catch (e) {
     console.error("Error parsing search results:", e, result);
@@ -337,6 +463,8 @@ function parseSearchResults(result: unknown): Product[] {
 
 // Helper function to parse single product details from MCP response
 function parseProductDetails(result: unknown): Product | null {
+  console.log("[parseProductDetails] Raw result:", result);
+
   try {
     let data = result;
 
@@ -375,25 +503,58 @@ function parseProductDetails(result: unknown): Product | null {
 
     if (!product) return null;
 
-    return {
+    // Extract price
+    let price: string | undefined;
+    if (product.price) {
+      price = String(product.price);
+    } else if (product.priceRange) {
+      const priceRange = product.priceRange as Record<string, unknown>;
+      const minPrice = priceRange.minVariantPrice as Record<string, unknown> | undefined;
+      if (minPrice?.amount) {
+        price = String(minPrice.amount);
+      }
+    }
+
+    // Extract image
+    let image: string | undefined;
+    if (product.image) {
+      image = extractImageUrl(product.image);
+    } else if (product.featuredImage) {
+      image = extractImageUrl(product.featuredImage);
+    } else if (product.images && Array.isArray(product.images) && product.images[0]) {
+      image = extractImageUrl(product.images[0]);
+    }
+
+    const mapped = {
       id: String(product.id || ""),
       title: String(product.title || ""),
       description: product.description ? String(product.description) : undefined,
       handle: product.handle ? String(product.handle) : undefined,
       vendor: product.vendor ? String(product.vendor) : "Allbirds",
-      productType: product.productType || product.product_type ? String(product.productType || product.product_type) : undefined,
-      price: product.price ? String(product.price) : undefined,
-      image: product.image ? (typeof product.image === "string" ? product.image : (product.image as Record<string, unknown>)?.src) as string : undefined,
-      variants: product.variants ? (product.variants as unknown[]).map((v: unknown) => {
+      productType: (product.productType || product.product_type) ? String(product.productType || product.product_type) : undefined,
+      price,
+      image,
+      variants: product.variants && Array.isArray(product.variants) ? (product.variants as unknown[]).map((v: unknown) => {
         const variant = v as Record<string, unknown>;
+        let variantPrice = "";
+        if (variant.price) {
+          if (typeof variant.price === "object" && variant.price !== null) {
+            variantPrice = String((variant.price as Record<string, unknown>).amount || "");
+          } else {
+            variantPrice = String(variant.price);
+          }
+        }
         return {
           id: String(variant.id || ""),
           title: String(variant.title || ""),
-          price: String(variant.price || ""),
+          price: variantPrice,
           available: Boolean(variant.available ?? variant.availableForSale ?? true),
         };
       }) : undefined,
     };
+
+    console.log("[parseProductDetails] Mapped product:", mapped.title, "image:", mapped.image);
+    return mapped;
   } catch (e) {
     console.error("Error parsing product details:", e, result);
     return null;
