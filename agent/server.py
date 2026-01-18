@@ -13,7 +13,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from ag_ui_adk import add_adk_fastapi_endpoint
+from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint
 
 from shopping_agent.agent import root_agent
 
@@ -33,8 +33,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Wrap the LlmAgent in ADKAgent for AG-UI compatibility
+adk_agent = ADKAgent(
+    adk_agent=root_agent,
+    user_id="demo_user",
+    session_timeout_seconds=3600,
+    use_in_memory_services=True,
+)
+
 # Add AG-UI endpoint for the ADK agent
-add_adk_fastapi_endpoint(app, root_agent)
+add_adk_fastapi_endpoint(app, adk_agent, path="/")
 
 
 @app.get("/health")
