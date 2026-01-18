@@ -48,6 +48,17 @@ When the user wants to add something to cart, confirm the specific variant (size
 """
 
 
+# Tool filter to only include Gemini-compatible tools from Shopify MCP
+# The update_cart tool has array parameters with 'required' fields which Gemini doesn't support
+# Cart management is handled by frontend CopilotKit tools instead
+ALLOWED_MCP_TOOLS = {"search_shop_catalog", "get_product_details"}
+
+
+def gemini_compatible_tool_filter(tool, ctx=None):
+    """Filter MCP tools to only include those compatible with Gemini's schema requirements."""
+    return tool.name in ALLOWED_MCP_TOOLS
+
+
 # Create the agent with MCP tools loaded at startup
 root_agent = LlmAgent(
     name="shopping_assistant",
@@ -57,7 +68,8 @@ root_agent = LlmAgent(
         MCPToolset(
             connection_params=StreamableHTTPConnectionParams(
                 url=SHOPIFY_MCP_URL,
-            )
+            ),
+            tool_filter=gemini_compatible_tool_filter,
         )
     ],
 )
