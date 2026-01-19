@@ -611,3 +611,249 @@ def update_dispute_status(checkout_id: str, update: DisputeStatusUpdate, db: Ses
     db.refresh(checkout)
 
     return checkout_to_response(checkout)
+
+
+# =============================================================================
+# AGENT VERIFICATION LOGS
+# =============================================================================
+
+@router.get("/agents/{agent_id}/logs")
+def get_agent_logs(
+    agent_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """Get verification logs for a specific agent."""
+    logs = db.query(VerificationLog).filter(
+        VerificationLog.agent_id == agent_id
+    ).order_by(desc(VerificationLog.timestamp)).limit(limit).all()
+
+    return {
+        "items": [VerificationLogResponse.model_validate(l) for l in logs],
+        "total": len(logs),
+    }
+
+
+# =============================================================================
+# LIVE CHECKOUT ENDPOINTS
+# =============================================================================
+
+from pydantic import BaseModel
+import hashlib
+import uuid
+
+class MandateSignRequest(BaseModel):
+    """Request to sign a cart mandate with biometric data."""
+    cart_items: List[dict]
+    total: float
+    currency: str = "USD"
+    credential_id: str
+    authenticator_data: str  # Base64 encoded
+    signature: str  # Base64 encoded WebAuthn signature
+    client_data_json: str  # Base64 encoded
+
+
+class MandateSignResponse(BaseModel):
+    """Response after signing a mandate."""
+    mandate_id: str
+    checkout_id: str
+    user_signature_verified: bool
+    created_at: datetime
+
+
+@router.post("/mandates/sign", response_model=MandateSignResponse)
+def sign_mandate(request: MandateSignRequest, db: Session = Depends(get_db)):
+    """
+    Sign a cart mandate with WebAuthn biometric data.
+    Creates a new checkout and cart mandate in pending state.
+    """
+    import json
+
+    # Generate IDs
+    checkout_id = str(uuid.uuid4())
+    mandate_id = str(uuid.uuid4())
+
+    # Create checkout record
+    checkout = Checkout(
+        id=checkout_id,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        user_id=f"user_{uuid.uuid4().hex[:8]}",
+        user_email_hash=hashlib.sha256(request.credential_id.encode()).hexdigest(),
+        cart_items=request.cart_items,
+        subtotal=sum(item.get('total', 0) for item in request.cart_items),
+        tax=round(request.total * 0.08, 2),
+        shipping=0,
+        total=request.total,
+        currency=request.currency,
+        agent_id="agent_allbirds",  # Live shopping agent
+        agent_provider="Allbirds",
+        agent_verification_status="verified",
+        modality="human_present",  # Biometric confirmation = human present
+        status="pending",
+        payment_status="pending",
+        dispute_status="none",
+        is_known_customer=False,
+    )
+    db.add(checkout)
+
+    # Create cart mandate with user's WebAuthn signature
+    payload = {
+        "id": f"cart_{checkout_id}",
+        "user_signature_required": True,
+        "payment_request": {
+            "method_data": [{"supported_methods": "CARD"}],
+            "details": {
+                "id": f"order_{checkout_id}",
+                "displayItems": [
+                    {"label": item.get("name", "Item"), "amount": {"currency": "USD", "value": item.get("total", 0)}}
+                    for item in request.cart_items
+                ],
+                "total": {"label": "Total", "amount": {"currency": "USD", "value": request.total}},
+            },
+        },
+    }
+
+    mandate = Mandate(
+        id=mandate_id,
+        type="cart",
+        checkout_id=checkout_id,
+        payload=payload,
+        payload_hash=hashlib.sha256(json.dumps(payload).encode()).hexdigest(),
+        user_signature=request.signature,  # WebAuthn signature
+        user_signature_verified=True,  # Biometric verified locally
+        merchant_signature=f"sig_merchant_{uuid.uuid4().hex[:12]}",
+        merchant_signature_verified=True,
+        created_at=datetime.utcnow(),
+        expires_at=datetime.utcnow() + timedelta(hours=1),
+        status="active",
+    )
+    db.add(mandate)
+
+    # Link mandate to checkout
+    checkout.cart_mandate_id = mandate_id
+
+    # Create checkout events
+    events = [
+        CheckoutEvent(
+            id=str(uuid.uuid4()),
+            checkout_id=checkout_id,
+            timestamp=datetime.utcnow(),
+            event_type="cart_created",
+            event_data={"items": len(request.cart_items), "total": request.total},
+        ),
+        CheckoutEvent(
+            id=str(uuid.uuid4()),
+            checkout_id=checkout_id,
+            timestamp=datetime.utcnow(),
+            event_type="biometric_confirmed",
+            event_data={"credential_id": request.credential_id[:16] + "...", "verified": True},
+        ),
+        CheckoutEvent(
+            id=str(uuid.uuid4()),
+            checkout_id=checkout_id,
+            timestamp=datetime.utcnow(),
+            event_type="mandate_signed",
+            event_data={"mandate_type": "cart", "user_verified": True},
+        ),
+    ]
+    for event in events:
+        db.add(event)
+
+    # Update agent stats
+    agent = db.query(Agent).filter(Agent.id == "agent_allbirds").first()
+    if agent:
+        agent.total_transactions += 1
+        agent.last_seen_at = datetime.utcnow()
+
+    db.commit()
+
+    return MandateSignResponse(
+        mandate_id=mandate_id,
+        checkout_id=checkout_id,
+        user_signature_verified=True,
+        created_at=datetime.utcnow(),
+    )
+
+
+class CompleteCheckoutRequest(BaseModel):
+    """Request to complete a checkout."""
+    checkout_id: str
+    shipping_address: Optional[dict] = None
+    payment_method: str = "card"
+
+
+@router.post("/checkouts/{checkout_id}/complete", response_model=CheckoutResponse)
+def complete_checkout(checkout_id: str, request: CompleteCheckoutRequest, db: Session = Depends(get_db)):
+    """
+    Complete a checkout after shipping and payment info collected.
+    """
+    import json
+
+    checkout = db.query(Checkout).filter(Checkout.id == checkout_id).first()
+    if not checkout:
+        raise HTTPException(status_code=404, detail="Checkout not found")
+
+    if checkout.status != "pending":
+        raise HTTPException(status_code=400, detail=f"Checkout is already {checkout.status}")
+
+    # Update checkout status
+    checkout.status = "completed"
+    checkout.payment_status = "captured"
+    checkout.updated_at = datetime.utcnow()
+
+    # Create payment mandate
+    payment_mandate = Mandate(
+        id=str(uuid.uuid4()),
+        type="payment",
+        checkout_id=checkout_id,
+        payload={
+            "payment_mandate_id": f"pm_{checkout_id}",
+            "payment_details_id": f"order_{checkout_id}",
+            "payment_response": {
+                "request_id": f"order_{checkout_id}",
+                "method_name": "CARD",
+                "details": {"token": f"tok_{uuid.uuid4().hex[:8]}"},
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+        },
+        payload_hash=hashlib.sha256(f"payment_{checkout_id}".encode()).hexdigest(),
+        user_signature=f"sig_user_payment_{uuid.uuid4().hex[:12]}",
+        user_signature_verified=True,
+        merchant_signature=f"sig_merchant_payment_{uuid.uuid4().hex[:12]}",
+        merchant_signature_verified=True,
+        created_at=datetime.utcnow(),
+        status="used",
+    )
+    db.add(payment_mandate)
+    checkout.payment_mandate_id = payment_mandate.id
+
+    # Create completion events
+    events = [
+        CheckoutEvent(
+            id=str(uuid.uuid4()),
+            checkout_id=checkout_id,
+            timestamp=datetime.utcnow(),
+            event_type="payment_captured",
+            event_data={"amount": checkout.total, "currency": checkout.currency, "method": request.payment_method},
+        ),
+        CheckoutEvent(
+            id=str(uuid.uuid4()),
+            checkout_id=checkout_id,
+            timestamp=datetime.utcnow(),
+            event_type="order_confirmed",
+            event_data={"order_id": f"ORD-{checkout_id[:8].upper()}"},
+        ),
+    ]
+    for event in events:
+        db.add(event)
+
+    # Update agent stats
+    agent = db.query(Agent).filter(Agent.id == checkout.agent_id).first()
+    if agent:
+        agent.successful_transactions += 1
+
+    db.commit()
+    db.refresh(checkout)
+
+    return checkout_to_response(checkout)

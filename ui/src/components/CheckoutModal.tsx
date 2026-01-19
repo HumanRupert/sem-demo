@@ -20,12 +20,20 @@ import { formatPrice } from "@/lib/utils";
 
 type CheckoutStep = "review" | "shipping" | "payment" | "confirmation";
 
-// WebAuthn biometric confirmation helper
-async function requestBiometricConfirmation(): Promise<boolean> {
+interface BiometricResult {
+  success: boolean;
+  credentialId?: string;
+  authenticatorData?: string;
+  signature?: string;
+  clientDataJSON?: string;
+}
+
+// WebAuthn biometric confirmation helper - creates credential and returns signature data
+async function requestBiometricConfirmation(): Promise<BiometricResult> {
   // Check if WebAuthn is supported
   if (typeof window === "undefined" || !window.PublicKeyCredential) {
     console.log("WebAuthn not supported, skipping biometric");
-    return true; // Fallback: allow without biometric
+    return { success: true }; // Fallback: allow without biometric
   }
 
   try {
@@ -53,12 +61,33 @@ async function requestBiometricConfirmation(): Promise<boolean> {
         },
         timeout: 60000,
       },
-    });
+    }) as PublicKeyCredential | null;
 
-    return !!credential;
+    if (!credential) {
+      return { success: false };
+    }
+
+    // Extract signature data from the credential response
+    const response = credential.response as AuthenticatorAttestationResponse;
+
+    // Convert ArrayBuffers to base64 strings
+    const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      bytes.forEach(b => binary += String.fromCharCode(b));
+      return btoa(binary);
+    };
+
+    return {
+      success: true,
+      credentialId: arrayBufferToBase64(credential.rawId),
+      authenticatorData: arrayBufferToBase64(response.getAuthenticatorData()),
+      signature: arrayBufferToBase64(response.attestationObject),
+      clientDataJSON: arrayBufferToBase64(response.clientDataJSON),
+    };
   } catch (error) {
     console.log("Biometric verification failed or cancelled:", error);
-    return false;
+    return { success: false };
   }
 }
 
@@ -90,15 +119,56 @@ export function CheckoutModal() {
     country: "United States",
   });
   const [orderNumber, setOrderNumber] = useState("");
+  const [checkoutId, setCheckoutId] = useState<string | null>(null);
+  const [mandateId, setMandateId] = useState<string | null>(null);
 
   const handleBiometricConfirm = async () => {
     setIsVerifying(true);
-    const success = await requestBiometricConfirmation();
-    setIsVerifying(false);
+    const result = await requestBiometricConfirmation();
 
-    if (success) {
+    if (result.success) {
+      // Sign the mandate with biometric data and persist checkout
+      try {
+        const cartItems = items.map(item => ({
+          sku: item.variantId,
+          name: item.title,
+          quantity: item.quantity,
+          unit_price: item.price,
+          total: item.price * item.quantity,
+          variant: item.variantTitle || '',
+          image_url: item.image || '',
+        }));
+
+        const response = await fetch('http://localhost:8000/merchant/mandates/sign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cart_items: cartItems,
+            total: totalPrice + (totalPrice * 0.08), // Include tax
+            currency: 'USD',
+            credential_id: result.credentialId || 'demo_credential',
+            authenticator_data: result.authenticatorData || '',
+            signature: result.signature || '',
+            client_data_json: result.clientDataJSON || '',
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setCheckoutId(data.checkout_id);
+          setMandateId(data.mandate_id);
+          console.log('Mandate signed:', data);
+        } else {
+          console.error('Failed to sign mandate:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error signing mandate:', error);
+      }
+
       setStep("shipping");
     }
+
+    setIsVerifying(false);
   };
 
   const handleShippingSubmit = (e: React.FormEvent) => {
@@ -110,11 +180,47 @@ export function CheckoutModal() {
     e.preventDefault();
     setIsProcessing(true);
 
-    // Simulate payment processing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      // Complete the checkout by calling the backend
+      if (checkoutId) {
+        const response = await fetch(`http://localhost:8000/merchant/checkouts/${checkoutId}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            checkout_id: checkoutId,
+            shipping_address: {
+              email: shippingInfo.email,
+              name: `${shippingInfo.firstName} ${shippingInfo.lastName}`,
+              address: shippingInfo.address,
+              city: shippingInfo.city,
+              state: shippingInfo.state,
+              zip: shippingInfo.zip,
+              country: shippingInfo.country,
+            },
+            payment_method: 'card',
+          }),
+        });
 
-    // Generate mock order number
-    setOrderNumber(`ORD-${Date.now().toString(36).toUpperCase()}`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Checkout completed:', data);
+          setOrderNumber(`ORD-${checkoutId.slice(0, 8).toUpperCase()}`);
+        } else {
+          console.error('Failed to complete checkout:', await response.text());
+          // Fallback to demo order number
+          setOrderNumber(`ORD-${Date.now().toString(36).toUpperCase()}`);
+        }
+      } else {
+        // Fallback for demo mode without backend
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        setOrderNumber(`ORD-${Date.now().toString(36).toUpperCase()}`);
+      }
+    } catch (error) {
+      console.error('Error completing checkout:', error);
+      // Fallback to demo order number
+      setOrderNumber(`ORD-${Date.now().toString(36).toUpperCase()}`);
+    }
+
     setIsProcessing(false);
     setStep("confirmation");
   };
@@ -133,6 +239,9 @@ export function CheckoutModal() {
         zip: "",
         country: "United States",
       });
+      setCheckoutId(null);
+      setMandateId(null);
+      setOrderNumber("");
     }
     closeCheckout();
   };

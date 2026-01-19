@@ -27,6 +27,16 @@ random.seed(RANDOM_SEED)
 
 AGENTS = [
     {
+        "id": "agent_allbirds",
+        "name": "Allbirds Shopping Assistant",
+        "provider": "Allbirds",
+        "description": "Allbirds' native AI shopping assistant",
+        "logo_url": "/agents/allbirds.svg",
+        "jwks_uri": "https://allbirds.com/.well-known/jwks.json",
+        "trust_level": "trusted",
+        "behavior": {"volume": "high", "decline_rate": 0.05, "dispute_rate": 0},
+    },
+    {
         "id": "agent_chatgpt_shopping",
         "name": "ChatGPT Shopping",
         "provider": "OpenAI",
@@ -34,77 +44,7 @@ AGENTS = [
         "logo_url": "/agents/openai.svg",
         "jwks_uri": "https://api.openai.com/.well-known/jwks.json",
         "trust_level": "trusted",
-        "behavior": {"volume": "high", "decline_rate": 0.05, "dispute_rate": 0.02},
-    },
-    {
-        "id": "agent_google_shopping",
-        "name": "Google Shopping Agent",
-        "provider": "Google",
-        "description": "Google's AI shopping assistant with Gemini",
-        "logo_url": "/agents/google.svg",
-        "jwks_uri": "https://www.googleapis.com/.well-known/jwks.json",
-        "trust_level": "trusted",
-        "behavior": {"volume": "high", "decline_rate": 0.04, "dispute_rate": 0.01},
-    },
-    {
-        "id": "agent_perplexity_buy",
-        "name": "Perplexity Buy",
-        "provider": "Perplexity AI",
-        "description": "Perplexity's commerce assistant",
-        "logo_url": "/agents/perplexity.svg",
-        "jwks_uri": "https://api.perplexity.ai/.well-known/jwks.json",
-        "trust_level": "trusted",
-        "behavior": {"volume": "medium", "decline_rate": 0.06, "dispute_rate": 0.02},
-    },
-    {
-        "id": "agent_amazon_rufus",
-        "name": "Amazon Rufus",
-        "provider": "Amazon",
-        "description": "Amazon's AI shopping companion",
-        "logo_url": "/agents/amazon.svg",
-        "jwks_uri": "https://api.amazon.com/.well-known/jwks.json",
-        "trust_level": "trusted",
-        "behavior": {"volume": "medium", "decline_rate": 0.03, "dispute_rate": 0.01},
-    },
-    {
-        "id": "agent_klarna_agent",
-        "name": "Klarna Agent",
-        "provider": "Klarna",
-        "description": "Klarna's buy-now-pay-later shopping agent",
-        "logo_url": "/agents/klarna.svg",
-        "jwks_uri": "https://api.klarna.com/.well-known/jwks.json",
-        "trust_level": "probation",
-        "behavior": {"volume": "medium", "decline_rate": 0.15, "dispute_rate": 0.04},  # Higher decline rate
-    },
-    {
-        "id": "agent_apple_intelligence",
-        "name": "Apple Intelligence Shopping",
-        "provider": "Apple",
-        "description": "Apple Intelligence shopping assistant (new)",
-        "logo_url": "/agents/apple.svg",
-        "jwks_uri": "https://api.apple.com/.well-known/jwks.json",
-        "trust_level": "trusted",
-        "behavior": {"volume": "low", "decline_rate": 0.05, "dispute_rate": 0.01, "new": True},  # New agent
-    },
-    {
-        "id": "agent_shopbot_ai",
-        "name": "ShopBot AI",
-        "provider": "ShopBot Inc",
-        "description": "Third-party shopping automation (blocked)",
-        "logo_url": "/agents/shopbot.svg",
-        "jwks_uri": "https://shopbot.ai/.well-known/jwks.json",
-        "trust_level": "blocked",
-        "behavior": {"volume": "low", "decline_rate": 0.30, "dispute_rate": 0.15},  # High dispute rate
-    },
-    {
-        "id": "agent_buyerbot",
-        "name": "BuyerBot",
-        "provider": "BuyerBot LLC",
-        "description": "Automated purchase assistant",
-        "logo_url": "/agents/buyerbot.svg",
-        "jwks_uri": "https://buyerbot.io/.well-known/jwks.json",
-        "trust_level": "probation",
-        "behavior": {"volume": "low", "decline_rate": 0.12, "dispute_rate": 0.05},
+        "behavior": {"volume": "medium", "decline_rate": 0.08, "dispute_rate": 0},
     },
 ]
 
@@ -373,17 +313,16 @@ def seed_database():
     print("Creating checkouts...")
 
     # Distribution weights based on requirements
-    # 70% completed, 10% declined, 8% challenged, 7% abandoned, 5% disputed
+    # 75% completed, 12% declined, 8% challenged, 5% abandoned, 0% disputed
     status_weights = {
-        "completed": 70,
-        "declined": 10,
+        "completed": 75,
+        "declined": 12,
         "challenged": 8,
-        "abandoned": 7,
-        "disputed": 5,
+        "abandoned": 5,
     }
 
-    # Volume distribution per agent
-    volume_weights = {"high": 12, "medium": 8, "low": 3}
+    # Volume distribution per agent (70% Allbirds, 30% ChatGPT)
+    volume_weights = {"high": 35, "medium": 15, "low": 5}
 
     checkout_count = 0
     all_checkouts = []
@@ -412,8 +351,6 @@ def seed_database():
             # Determine status based on agent behavior
             if random.random() < behavior["decline_rate"]:
                 status = "declined"
-            elif random.random() < behavior["dispute_rate"]:
-                status = "disputed"
             else:
                 # Use overall distribution for non-declined
                 statuses = list(status_weights.keys())
@@ -425,7 +362,7 @@ def seed_database():
                 payment_status = "captured"
             elif status == "declined":
                 payment_status = "failed"
-            elif status in ["challenged", "disputed"]:
+            elif status == "challenged":
                 payment_status = random.choice(["authorized", "captured"])
             else:
                 payment_status = "pending"
@@ -446,12 +383,9 @@ def seed_database():
             # Decline reason for declined status
             decline_reason = random.choice(DECLINE_REASONS) if status == "declined" else None
 
-            # Dispute status
+            # No disputes in this demo
             dispute_status = "none"
             dispute_opened_at = None
-            if status == "disputed":
-                dispute_status = random.choice(["opened", "represented", "won", "lost"])
-                dispute_opened_at = created_at + timedelta(days=random.randint(1, 7))
 
             # Verification status based on trust level
             if agent.trust_level == "trusted":
@@ -500,8 +434,6 @@ def seed_database():
                 agent.successful_transactions += 1
             elif status == "declined":
                 agent.declined_transactions += 1
-            elif status == "disputed":
-                agent.disputed_transactions += 1
 
             checkout_count += 1
 
@@ -654,20 +586,6 @@ def seed_database():
                 "timestamp": base_time + timedelta(minutes=random.randint(5, 30)),
                 "event_data": {"last_step": "cart_review"},
             })
-
-        # Event: Dispute (if disputed)
-        if checkout.dispute_status != "none" and checkout.dispute_opened_at:
-            events_to_create.append({
-                "event_type": "dispute_opened",
-                "timestamp": checkout.dispute_opened_at,
-                "event_data": {"reason": "Item not as described", "status": checkout.dispute_status},
-            })
-            if checkout.dispute_status in ["represented", "won", "lost"]:
-                events_to_create.append({
-                    "event_type": f"dispute_{checkout.dispute_status}",
-                    "timestamp": checkout.dispute_opened_at + timedelta(days=random.randint(3, 14)),
-                    "event_data": {"status": checkout.dispute_status},
-                })
 
         # Create event records
         for event_data in events_to_create:
