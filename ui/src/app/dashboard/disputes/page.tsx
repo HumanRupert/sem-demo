@@ -382,10 +382,6 @@ export default function DisputesPage() {
           <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
             {disputes.map((dispute) => {
               if (!dispute.checkout) return null;
-              const strength = getEvidenceStrength(dispute);
-              const hasCart = dispute.mandates?.some(m => m.type === 'cart') || false;
-              const hasIntent = dispute.mandates?.some(m => m.type === 'intent') || false;
-              const hasPayment = dispute.mandates?.some(m => m.type === 'payment') || false;
               const status = dispute.checkout.dispute_status || 'opened';
               return (
                 <div
@@ -398,7 +394,7 @@ export default function DisputesPage() {
                     selectedDispute?.checkout?.id === dispute.checkout.id ? 'bg-blue-50' : ''
                   }`}
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-900">
@@ -412,22 +408,6 @@ export default function DisputesPage() {
                       <p className="text-xs text-gray-400 mt-1">
                         {dispute.checkout.dispute_opened_at ? `Opened ${formatDate(dispute.checkout.dispute_opened_at)}` : 'Date unknown'}
                       </p>
-                    </div>
-                    <div className="text-right">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getEvidenceStrengthColor(strength)}`}>
-                        {strength} Evidence
-                      </span>
-                      <div className="flex gap-1 mt-2 justify-end">
-                        {hasCart && (
-                          <span className="w-2 h-2 bg-blue-500 rounded-full" title="Cart Mandate"></span>
-                        )}
-                        {hasIntent && (
-                          <span className="w-2 h-2 bg-purple-500 rounded-full" title="Intent Mandate"></span>
-                        )}
-                        {hasPayment && (
-                          <span className="w-2 h-2 bg-green-500 rounded-full" title="Payment Mandate"></span>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -501,6 +481,7 @@ export default function DisputesPage() {
                   </div>
 
                   {/* Mandates */}
+                  {evidence.mandates && evidence.mandates.length > 0 && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-3">
                       Verifiable Digital Credentials ({evidence.mandates.length})
@@ -535,9 +516,10 @@ export default function DisputesPage() {
                       ))}
                     </div>
                   </div>
+                  )}
 
                   {/* Verification Logs */}
-                  {evidence.verification_logs.length > 0 && (
+                  {evidence.verification_logs && evidence.verification_logs.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-3">
                         Signature Verification Log ({evidence.verification_logs.length})
@@ -559,7 +541,7 @@ export default function DisputesPage() {
                   )}
 
                   {/* Timeline */}
-                  {evidence.timeline.length > 0 && (
+                  {evidence.timeline && evidence.timeline.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-3">Event Timeline</h4>
                       <div className="space-y-2">
