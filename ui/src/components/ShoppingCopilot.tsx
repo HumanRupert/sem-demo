@@ -10,6 +10,7 @@ import { CopilotChat } from "@copilotkit/react-ui";
 import "@copilotkit/react-ui/styles.css";
 import { useCart } from "@/context/CartContext";
 import { ProductGrid, ProductCard, Product } from "./ProductCard";
+import { AvailabilityOption, InlineSizeSelector } from "./SizeSelector";
 import { motion } from "framer-motion";
 
 function CopilotActions() {
@@ -170,6 +171,83 @@ function CopilotActions() {
     },
   });
 
+  // Show size selector action - renders a UI for user to select size
+  useCopilotAction({
+    name: "showSizeSelector",
+    description:
+      "Show a size selection UI for products that have multiple sizes. Use this instead of addToCart when the product has an availabilityMatrix with sizes. After the user selects a size, the item will be added to cart automatically.",
+    parameters: [
+      {
+        name: "productId",
+        type: "string",
+        description: "The unique ID of the product",
+        required: true,
+      },
+      {
+        name: "title",
+        type: "string",
+        description: "The product title",
+        required: true,
+      },
+      {
+        name: "price",
+        type: "string",
+        description: "The product price",
+        required: true,
+      },
+      {
+        name: "image",
+        type: "string",
+        description: "URL of the product image",
+        required: false,
+      },
+      {
+        name: "availabilityMatrix",
+        type: "object[]",
+        description:
+          "Array of size options: [{variantId, size, color, available, price}]",
+        required: true,
+      },
+    ],
+    render: ({ args, status }) => {
+      if (status === "executing" || status === "complete") {
+        const { productId, title, price, image, availabilityMatrix } = args as {
+          productId: string;
+          title: string;
+          price: string;
+          image?: string;
+          availabilityMatrix: AvailabilityOption[];
+        };
+
+        const handleSizeSelect = (option: AvailabilityOption) => {
+          const priceNum = parseFloat(option.price || price || "0") || 0;
+          addItem({
+            productId,
+            variantId: option.variantId,
+            title,
+            variantTitle: option.size || option.color,
+            price: priceNum,
+            image,
+          });
+        };
+
+        return (
+          <InlineSizeSelector
+            productTitle={title}
+            productImage={image}
+            productPrice={price}
+            availabilityMatrix={availabilityMatrix}
+            onSelect={handleSizeSelect}
+          />
+        );
+      }
+      return null;
+    },
+    handler: async () => {
+      return "Size selector shown. Please select a size to add the item to cart.";
+    },
+  });
+
   return null;
 }
 
@@ -177,7 +255,7 @@ function CopilotActions() {
 function GenerativeUI() {
   const { addItem } = useCart();
 
-  // Handle add to cart from product cards
+  // Handle add to cart from product cards (no size selection)
   const handleAddToCart = (product: Product) => {
     // Parse price from string (handle ranges like "98-120")
     const priceStr = product.price || "0";
@@ -188,6 +266,21 @@ function GenerativeUI() {
       variantId: product.variantId || product.id,
       title: product.title,
       variantTitle: product.productType,
+      price,
+      image: product.imageUrl || product.image,
+    });
+  };
+
+  // Handle add to cart with size selection
+  const handleAddToCartWithSize = (product: Product, option: AvailabilityOption) => {
+    const priceStr = option.price || product.price || "0";
+    const price = parseFloat(priceStr.split("-")[0]) || 0;
+
+    addItem({
+      productId: product.id,
+      variantId: option.variantId,
+      title: product.title,
+      variantTitle: option.size || option.color || product.productType,
       price,
       image: product.imageUrl || product.image,
     });
@@ -223,7 +316,11 @@ function GenerativeUI() {
           animate={{ opacity: 1, y: 0 }}
           className="my-4"
         >
-          <ProductGrid products={products} onAddToCart={handleAddToCart} />
+          <ProductGrid
+            products={products}
+            onAddToCart={handleAddToCart}
+            onAddToCartWithSize={handleAddToCartWithSize}
+          />
         </motion.div>
       );
     },
@@ -256,7 +353,11 @@ function GenerativeUI() {
           animate={{ opacity: 1, y: 0 }}
           className="my-4 max-w-sm"
         >
-          <ProductCard product={product} onAddToCart={handleAddToCart} />
+          <ProductCard
+            product={product}
+            onAddToCart={handleAddToCart}
+            onAddToCartWithSize={handleAddToCartWithSize}
+          />
         </motion.div>
       );
     },
@@ -419,6 +520,22 @@ function parseSearchResults(result: unknown): Product[] {
         variantId = String(product.variant_id);
       }
 
+      // Extract availability matrix for size selection
+      // Shopify MCP returns: availabilityMatrix: [{ variantId, size, color, available, price }]
+      let availabilityMatrix: AvailabilityOption[] | undefined;
+      if (product.availabilityMatrix && Array.isArray(product.availabilityMatrix)) {
+        availabilityMatrix = (product.availabilityMatrix as unknown[]).map((item: unknown) => {
+          const opt = item as Record<string, unknown>;
+          return {
+            variantId: String(opt.variantId || opt.variant_id || ""),
+            size: opt.size ? String(opt.size) : undefined,
+            color: opt.color ? String(opt.color) : undefined,
+            available: Boolean(opt.available ?? true),
+            price: opt.price ? String(opt.price) : undefined,
+          };
+        });
+      }
+
       const mapped: Product = {
         id: String(product.product_id || product.id || product.variantId || ""),
         title: String(product.title || product.name || ""),
@@ -431,6 +548,7 @@ function parseSearchResults(result: unknown): Product[] {
         imageUrl, // Direct image URL from Storefront MCP
         productUrl, // Direct product URL from Storefront MCP
         variantId, // Variant ID for cart operations
+        availabilityMatrix, // Size/color availability for selection
         variants: product.variants && Array.isArray(product.variants) ? (product.variants as unknown[]).map((v: unknown) => {
           const variant = v as Record<string, unknown>;
           let variantPrice = "";
@@ -541,6 +659,21 @@ function parseProductDetails(result: unknown): Product | null {
       variantId = String(product.variant_id);
     }
 
+    // Extract availability matrix for size selection
+    let availabilityMatrix: AvailabilityOption[] | undefined;
+    if (product.availabilityMatrix && Array.isArray(product.availabilityMatrix)) {
+      availabilityMatrix = (product.availabilityMatrix as unknown[]).map((item: unknown) => {
+        const opt = item as Record<string, unknown>;
+        return {
+          variantId: String(opt.variantId || opt.variant_id || ""),
+          size: opt.size ? String(opt.size) : undefined,
+          color: opt.color ? String(opt.color) : undefined,
+          available: Boolean(opt.available ?? true),
+          price: opt.price ? String(opt.price) : undefined,
+        };
+      });
+    }
+
     const mapped: Product = {
       id: String(product.id || product.variantId || ""),
       title: String(product.title || product.name || ""),
@@ -553,6 +686,7 @@ function parseProductDetails(result: unknown): Product | null {
       imageUrl,
       productUrl,
       variantId,
+      availabilityMatrix,
       variants: product.variants && Array.isArray(product.variants) ? (product.variants as unknown[]).map((v: unknown) => {
         const variant = v as Record<string, unknown>;
         let variantPrice = "";

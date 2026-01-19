@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { formatPrice } from "@/lib/utils";
-import { ExternalLink, ShoppingCart, Plus } from "lucide-react";
+import { ExternalLink, Plus } from "lucide-react";
+import { SizeSelector, AvailabilityOption } from "./SizeSelector";
 
 export interface ProductVariant {
   id: string;
@@ -27,14 +29,17 @@ export interface Product {
   productUrl?: string; // Direct product URL from Storefront MCP
   variantId?: string; // Variant ID for cart operations
   variants?: ProductVariant[];
+  availabilityMatrix?: AvailabilityOption[]; // Size/color availability from MCP
 }
 
 interface ProductCardProps {
   product: Product;
   onAddToCart?: (product: Product, variant?: ProductVariant) => void;
+  onAddToCartWithSize?: (product: Product, option: AvailabilityOption) => void;
 }
 
-export function ProductCard({ product, onAddToCart }: ProductCardProps) {
+export function ProductCard({ product, onAddToCart, onAddToCartWithSize }: ProductCardProps) {
+  const [isSizeSelectorOpen, setIsSizeSelectorOpen] = useState(false);
   const price = product.price || product.variants?.[0]?.price || "0";
 
   // Use imageUrl from Storefront MCP first, then fallback to other image fields
@@ -49,10 +54,34 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
     (product.handle ? `https://www.allbirds.com/products/${product.handle}` :
     `https://www.allbirds.com/search?q=${encodeURIComponent(product.title)}`);
 
+  // Check if product has size options
+  const hasAvailabilityMatrix = product.availabilityMatrix && product.availabilityMatrix.length > 0;
+
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onAddToCart?.(product);
+
+    if (hasAvailabilityMatrix) {
+      // Open size selector modal
+      setIsSizeSelectorOpen(true);
+    } else {
+      // Add directly to cart
+      onAddToCart?.(product);
+    }
+  };
+
+  const handleSizeSelect = (option: AvailabilityOption) => {
+    if (onAddToCartWithSize) {
+      onAddToCartWithSize(product, option);
+    } else if (onAddToCart) {
+      // Fallback: create a variant-like object
+      onAddToCart(product, {
+        id: option.variantId,
+        title: option.size || option.color || "Default",
+        price: option.price || price,
+        available: option.available,
+      });
+    }
   };
 
   return (
@@ -127,7 +156,13 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
           )}
         </div>
 
-        {product.variants && product.variants.length > 1 && (
+        {/* Size/variant info */}
+        {hasAvailabilityMatrix && (
+          <p className="text-xs text-gray-400 mb-3">
+            {product.availabilityMatrix!.filter(o => o.available).length} sizes available
+          </p>
+        )}
+        {!hasAvailabilityMatrix && product.variants && product.variants.length > 1 && (
           <p className="text-xs text-gray-400 mb-3">
             {product.variants.length} options available
           </p>
@@ -149,10 +184,23 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-black text-white rounded-xl text-sm font-medium hover:bg-gray-800 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md"
           >
             <Plus className="w-4 h-4" />
-            Add to Cart
+            {hasAvailabilityMatrix ? "Select Size" : "Add to Cart"}
           </button>
         </div>
       </div>
+
+      {/* Size Selector Modal */}
+      {hasAvailabilityMatrix && (
+        <SizeSelector
+          isOpen={isSizeSelectorOpen}
+          onClose={() => setIsSizeSelectorOpen(false)}
+          onSelect={handleSizeSelect}
+          productTitle={product.title}
+          productImage={imageUrl}
+          productPrice={price}
+          availabilityMatrix={product.availabilityMatrix!}
+        />
+      )}
     </motion.div>
   );
 }
@@ -160,9 +208,10 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
 interface ProductGridProps {
   products: Product[];
   onAddToCart?: (product: Product, variant?: ProductVariant) => void;
+  onAddToCartWithSize?: (product: Product, option: AvailabilityOption) => void;
 }
 
-export function ProductGrid({ products, onAddToCart }: ProductGridProps) {
+export function ProductGrid({ products, onAddToCart, onAddToCartWithSize }: ProductGridProps) {
   if (!products || products.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -184,7 +233,11 @@ export function ProductGrid({ products, onAddToCart }: ProductGridProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.1 }}
         >
-          <ProductCard product={product} onAddToCart={onAddToCart} />
+          <ProductCard
+            product={product}
+            onAddToCart={onAddToCart}
+            onAddToCartWithSize={onAddToCartWithSize}
+          />
         </motion.div>
       ))}
     </motion.div>
