@@ -175,6 +175,24 @@ function CopilotActions() {
 
 // Generative UI hooks for agent tools
 function GenerativeUI() {
+  const { addItem } = useCart();
+
+  // Handle add to cart from product cards
+  const handleAddToCart = (product: Product) => {
+    // Parse price from string (handle ranges like "98-120")
+    const priceStr = product.price || "0";
+    const price = parseFloat(priceStr.split("-")[0]) || 0;
+
+    addItem({
+      productId: product.id,
+      variantId: product.variantId || product.id,
+      title: product.title,
+      variantTitle: product.productType,
+      price,
+      image: product.imageUrl || product.image,
+    });
+  };
+
   // Render search_products tool results as a product grid
   // This tool returns LLM-filtered results for relevance
   useRenderToolCall({
@@ -205,7 +223,7 @@ function GenerativeUI() {
           animate={{ opacity: 1, y: 0 }}
           className="my-4"
         >
-          <ProductGrid products={products} />
+          <ProductGrid products={products} onAddToCart={handleAddToCart} />
         </motion.div>
       );
     },
@@ -238,7 +256,7 @@ function GenerativeUI() {
           animate={{ opacity: 1, y: 0 }}
           className="my-4 max-w-sm"
         >
-          <ProductCard product={product} />
+          <ProductCard product={product} onAddToCart={handleAddToCart} />
         </motion.div>
       );
     },

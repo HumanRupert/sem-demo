@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { formatPrice } from "@/lib/utils";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ShoppingCart, Plus } from "lucide-react";
 
 export interface ProductVariant {
   id: string;
@@ -49,74 +49,111 @@ export function ProductCard({ product, onAddToCart }: ProductCardProps) {
     (product.handle ? `https://www.allbirds.com/products/${product.handle}` :
     `https://www.allbirds.com/search?q=${encodeURIComponent(product.title)}`);
 
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onAddToCart?.(product);
+  };
+
   return (
-    <motion.a
-      href={productUrl}
-      target="_blank"
-      rel="noopener noreferrer"
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="group relative flex flex-col bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-gray-200 transition-all duration-300 cursor-pointer"
+      className="group relative flex flex-col bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:border-gray-200 transition-all duration-300"
     >
-      {/* External link indicator */}
-      <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-sm">
-          <ExternalLink className="w-4 h-4 text-gray-600" />
+      {/* Product type badge */}
+      {product.productType && (
+        <div className="absolute top-3 left-3 z-10">
+          <span className="bg-black/80 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full">
+            {product.productType}
+          </span>
         </div>
-      </div>
+      )}
 
-      <div className="aspect-square relative overflow-hidden bg-gray-100">
+      {/* Sale badge */}
+      {product.compareAtPrice && (
+        <div className="absolute top-3 right-3 z-10">
+          <span className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+            SALE
+          </span>
+        </div>
+      )}
+
+      {/* Clickable image area */}
+      <a
+        href={productUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="aspect-square relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 cursor-pointer"
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={imageUrl}
           alt={product.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={(e) => {
-            // Fallback if image fails to load
             (e.target as HTMLImageElement).src = "https://cdn.shopify.com/s/files/1/0018/0819/6657/files/placeholder.png";
           }}
         />
-        {product.compareAtPrice && (
-          <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-medium px-2 py-1 rounded-full">
-            Sale
-          </span>
-        )}
-      </div>
+        {/* Hover overlay */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-300" />
+      </a>
 
       <div className="flex flex-col flex-1 p-4">
         {product.vendor && (
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+          <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 font-medium">
             {product.vendor}
           </p>
         )}
-        <h3 className="font-medium text-gray-900 line-clamp-2 mb-2 group-hover:text-green-700 transition-colors">
+        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2 text-sm leading-tight">
           {product.title}
         </h3>
         {product.description && (
-          <p className="text-sm text-gray-500 line-clamp-2 mb-3 flex-1">
+          <p className="text-xs text-gray-500 line-clamp-2 mb-3 flex-1 leading-relaxed">
             {product.description}
           </p>
         )}
-        <div className="flex items-center justify-between mt-auto">
-          <div className="flex items-baseline gap-2">
-            <span className="text-lg font-semibold text-gray-900">
-              {formatPrice(price)}
+
+        {/* Price section */}
+        <div className="flex items-baseline gap-2 mb-4">
+          <span className="text-xl font-bold text-gray-900">
+            {formatPrice(price)}
+          </span>
+          {product.compareAtPrice && (
+            <span className="text-sm text-gray-400 line-through">
+              {formatPrice(product.compareAtPrice)}
             </span>
-            {product.compareAtPrice && (
-              <span className="text-sm text-gray-400 line-through">
-                {formatPrice(product.compareAtPrice)}
-              </span>
-            )}
-          </div>
+          )}
         </div>
+
         {product.variants && product.variants.length > 1 && (
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-gray-400 mb-3">
             {product.variants.length} options available
           </p>
         )}
+
+        {/* Action buttons */}
+        <div className="flex gap-2 mt-auto">
+          <a
+            href={productUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200"
+          >
+            <ExternalLink className="w-4 h-4" />
+            View
+          </a>
+          <button
+            onClick={handleAddToCart}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-black text-white rounded-xl text-sm font-medium hover:bg-gray-800 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md"
+          >
+            <Plus className="w-4 h-4" />
+            Add to Cart
+          </button>
+        </div>
       </div>
-    </motion.a>
+    </motion.div>
   );
 }
 
