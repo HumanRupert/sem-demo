@@ -34,11 +34,13 @@ interface FunnelData {
 interface AgentPerformance {
   agent_id: string;
   agent_name: string;
-  total_transactions: number;
-  successful_transactions: number;
-  revenue: number;
-  success_rate: number;
+  trust_level: string;
+  total_checkouts: number;
+  total_revenue: number;
+  completion_rate: number;
+  decline_rate: number;
   dispute_rate: number;
+  avg_order_value: number;
 }
 
 interface TrendData {
@@ -78,7 +80,8 @@ export default function AnalyticsPage() {
 
       setOverview(overviewData);
       setFunnel(funnelData.stages || []);
-      setAgentPerformance(agentsData.agents || []);
+      // API returns array directly, not {agents: [...]}
+      setAgentPerformance(Array.isArray(agentsData) ? agentsData : agentsData.agents || []);
       setTrends(trendsData.data || []);
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
@@ -118,11 +121,11 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Analytics</h1>
           <p className="text-gray-500 mt-1">Performance insights for agentic commerce</p>
         </div>
         <div className="flex gap-2">
@@ -377,15 +380,15 @@ export default function AnalyticsPage() {
                 {agentPerformance.map((agent) => (
                   <tr key={agent.agent_id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4">
-                      <span className="font-medium text-gray-900">{agent.agent_name}</span>
+                      <span className="font-medium text-gray-700">{agent.agent_name}</span>
                     </td>
-                    <td className="py-3 px-4 text-right text-gray-600">{agent.total_transactions}</td>
-                    <td className="py-3 px-4 text-right text-gray-900 font-medium">
-                      {formatCurrency(agent.revenue)}
+                    <td className="py-3 px-4 text-right text-gray-600">{agent.total_checkouts}</td>
+                    <td className="py-3 px-4 text-right text-gray-700 font-medium">
+                      {formatCurrency(agent.total_revenue)}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <span className={agent.success_rate >= 80 ? 'text-green-600' : agent.success_rate >= 60 ? 'text-yellow-600' : 'text-red-600'}>
-                        {formatPercent(agent.success_rate)}
+                      <span className={agent.completion_rate >= 80 ? 'text-green-600' : agent.completion_rate >= 60 ? 'text-yellow-600' : 'text-red-600'}>
+                        {formatPercent(agent.completion_rate)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -396,8 +399,8 @@ export default function AnalyticsPage() {
                     <td className="py-3 px-4">
                       <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className={`h-full ${agent.success_rate >= 80 ? 'bg-green-500' : agent.success_rate >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                          style={{ width: `${agent.success_rate}%` }}
+                          className={`h-full ${agent.completion_rate >= 80 ? 'bg-green-500' : agent.completion_rate >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                          style={{ width: `${agent.completion_rate}%` }}
                         />
                       </div>
                     </td>
@@ -411,28 +414,28 @@ export default function AnalyticsPage() {
 
       {/* Insights */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">💡 Insights</h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Insights</h2>
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white/80 rounded-lg p-4">
-            <p className="text-sm font-medium text-gray-900">Top Performing Agent</p>
+            <p className="text-sm font-medium text-gray-700">Top Performing Agent</p>
             <p className="text-lg font-bold text-blue-600 mt-1">
               {agentPerformance.length > 0
-                ? agentPerformance.reduce((a, b) => (a.success_rate > b.success_rate ? a : b)).agent_name
+                ? agentPerformance.reduce((a, b) => (a.completion_rate > b.completion_rate ? a : b)).agent_name
                 : 'N/A'}
             </p>
-            <p className="text-xs text-gray-500 mt-1">Based on success rate</p>
+            <p className="text-xs text-gray-500 mt-1">Based on completion rate</p>
           </div>
           <div className="bg-white/80 rounded-lg p-4">
-            <p className="text-sm font-medium text-gray-900">Highest Revenue Agent</p>
+            <p className="text-sm font-medium text-gray-700">Highest Revenue Agent</p>
             <p className="text-lg font-bold text-green-600 mt-1">
               {agentPerformance.length > 0
-                ? agentPerformance.reduce((a, b) => (a.revenue > b.revenue ? a : b)).agent_name
+                ? agentPerformance.reduce((a, b) => (a.total_revenue > b.total_revenue ? a : b)).agent_name
                 : 'N/A'}
             </p>
             <p className="text-xs text-gray-500 mt-1">Based on total revenue</p>
           </div>
           <div className="bg-white/80 rounded-lg p-4">
-            <p className="text-sm font-medium text-gray-900">Agent Requiring Attention</p>
+            <p className="text-sm font-medium text-gray-700">Agent Requiring Attention</p>
             <p className="text-lg font-bold text-orange-600 mt-1">
               {agentPerformance.length > 0
                 ? agentPerformance.reduce((a, b) => (a.dispute_rate > b.dispute_rate ? a : b)).agent_name

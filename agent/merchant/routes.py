@@ -494,9 +494,13 @@ def get_analytics_overview(db: Session = Depends(get_db)):
     older_checkouts = db.query(Checkout).filter(Checkout.created_at < mid_point).count()
     checkout_trend = ((recent_checkouts - older_checkouts) / older_checkouts * 100) if older_checkouts > 0 else 0
 
+    # Calculate average order value
+    avg_order_value = (total_revenue / completed) if completed > 0 else 0
+
     return OverviewMetrics(
         total_checkouts=total_checkouts,
         total_revenue=round(total_revenue, 2),
+        average_order_value=round(avg_order_value, 2),
         completed_checkouts=completed,
         declined_checkouts=declined,
         challenged_checkouts=challenged,

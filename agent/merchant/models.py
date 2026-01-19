@@ -299,6 +299,7 @@ class OverviewMetrics(BaseModel):
     """Dashboard overview metrics."""
     total_checkouts: int
     total_revenue: float
+    average_order_value: float
     completed_checkouts: int
     declined_checkouts: int
     challenged_checkouts: int

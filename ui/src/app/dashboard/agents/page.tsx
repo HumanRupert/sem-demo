@@ -133,11 +133,11 @@ export default function AgentsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Agent Registry</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Agent Registry</h1>
           <p className="text-gray-500 mt-1">Know Your Agent (KYA) - Monitor and manage agent trust levels</p>
         </div>
         <div className="flex items-center gap-3">
@@ -328,7 +328,7 @@ export default function AgentsPage() {
                   value={registerForm.name}
                   onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
                   placeholder="e.g., Perplexity Shopping Assistant"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
@@ -340,7 +340,7 @@ export default function AgentsPage() {
                   value={registerForm.provider}
                   onChange={(e) => setRegisterForm({ ...registerForm, provider: e.target.value })}
                   placeholder="e.g., Perplexity AI"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
@@ -355,7 +355,7 @@ export default function AgentsPage() {
                   value={registerForm.jwks_uri}
                   onChange={(e) => setRegisterForm({ ...registerForm, jwks_uri: e.target.value })}
                   placeholder="https://api.example.com/.well-known/jwks.json"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <p className="mt-1 text-xs text-gray-500">Public key endpoint for agent signature verification</p>
               </div>
@@ -367,7 +367,7 @@ export default function AgentsPage() {
                   onChange={(e) => setRegisterForm({ ...registerForm, description: e.target.value })}
                   placeholder="Brief description of the agent's capabilities..."
                   rows={2}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 

@@ -57,10 +57,10 @@ export default function CheckoutsPage() {
   const agentMap = new Map(agents.map((a) => [a.id, a]));
 
   return (
-    <div className="p-8">
+    <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Checkouts</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Checkouts</h1>
         <p className="text-gray-500 mt-1">
           Browse all agentic checkout transactions
         </p>

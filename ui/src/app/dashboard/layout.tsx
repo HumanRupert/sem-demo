@@ -86,7 +86,7 @@ export default function DashboardLayout({
 
       {/* Main content */}
       <main className="pl-64">
-        <div className="min-h-screen">{children}</div>
+        <div className="min-h-screen p-8">{children}</div>
       </main>
     </div>
   );
