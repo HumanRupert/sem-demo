@@ -5,17 +5,30 @@ This server uses the ag-ui-adk middleware to make the ADK agent
 accessible to CopilotKit frontends.
 """
 
+import logging
 import os
+import time
 from dotenv import load_dotenv
 
 # Load environment variables before importing agent
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint
 
 from shopping_agent.agent import root_agent
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("agent_server")
 
 # Create FastAPI app
 app = FastAPI(
@@ -23,6 +36,31 @@ app = FastAPI(
     description="AI-powered shopping assistant with Shopify MCP integration",
     version="0.1.0",
 )
+
+
+# =============================================================================
+# REQUEST/RESPONSE LOGGING MIDDLEWARE
+# =============================================================================
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all incoming requests and responses."""
+    start_time = time.time()
+
+    # Log request
+    logger.info(f"[REQUEST] {request.method} {request.url.path}")
+
+    # Process request
+    response = await call_next(request)
+
+    # Calculate duration
+    duration = (time.time() - start_time) * 1000
+
+    # Log response
+    logger.info(f"[RESPONSE] {response.status_code} ({duration:.0f}ms)")
+
+    return response
+
 
 # Add CORS middleware for frontend access
 app.add_middleware(
@@ -44,10 +82,13 @@ adk_agent = ADKAgent(
 # Add AG-UI endpoint for the ADK agent
 add_adk_fastapi_endpoint(app, adk_agent, path="/")
 
+logger.info("[SERVER] Shopping Assistant API initialized")
+
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
+    logger.info("[HEALTH] Health check requested")
     return {"status": "healthy", "agent": "shopping_assistant"}
 
 
@@ -55,4 +96,5 @@ if __name__ == "__main__":
     import uvicorn
 
     port = int(os.environ.get("PORT", 8000))
+    logger.info(f"[SERVER] Starting on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)

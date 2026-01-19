@@ -15,6 +15,19 @@ import { ProductCarousel } from "./ProductCarousel";
 import { AvailabilityOption, InlineSizeSelector } from "./SizeSelector";
 import { motion } from "framer-motion";
 
+// =============================================================================
+// LOGGING
+// =============================================================================
+
+const DEBUG = process.env.NODE_ENV === 'development' || true; // Enable for debugging
+
+function log(category: string, message: string, data?: unknown) {
+  if (DEBUG) {
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, 12);
+    console.log(`[${timestamp}] [${category}]`, message, data !== undefined ? data : '');
+  }
+}
+
 function CopilotActions() {
   const { items, addItem, removeItem, openCart, openCheckout, totalPrice } =
     useCart();
@@ -263,6 +276,8 @@ function GenerativeUI() {
     const priceStr = product.price || "0";
     const price = parseFloat(priceStr.split("-")[0]) || 0;
 
+    log('CART', 'Adding to cart (no size)', { productId: product.id, title: product.title, price });
+
     addItem({
       productId: product.id,
       variantId: product.variantId || product.id,
@@ -277,6 +292,15 @@ function GenerativeUI() {
   const handleAddToCartWithSize = (product: Product, option: AvailabilityOption) => {
     const priceStr = option.price || product.price || "0";
     const price = parseFloat(priceStr.split("-")[0]) || 0;
+
+    log('CART', 'Adding to cart with size', {
+      productId: product.id,
+      title: product.title,
+      size: option.size,
+      color: option.color,
+      variantId: option.variantId,
+      price
+    });
 
     addItem({
       productId: product.id,
@@ -293,7 +317,7 @@ function GenerativeUI() {
   useRenderToolCall({
     name: "search_products",
     render: ({ status, result }) => {
-      console.log("[GenerativeUI] search_products status:", status, "result:", result);
+      log('TOOL', `search_products - status: ${status}`, { resultType: typeof result, hasResult: !!result });
 
       // Only show our custom UI when we have results
       // This prevents the duplicate spinner issue - let CopilotChat handle loading
@@ -332,7 +356,7 @@ function GenerativeUI() {
   useRenderToolCall({
     name: "get_product_details",
     render: ({ status, result }) => {
-      console.log("[GenerativeUI] get_product_details status:", status, "result:", result);
+      log('TOOL', `get_product_details - status: ${status}`, { hasResult: !!result });
 
       // Only show our custom UI when we have results
       if (!result) {
@@ -357,6 +381,46 @@ function GenerativeUI() {
         >
           <ProductCard
             product={product}
+            onAddToCart={handleAddToCart}
+            onAddToCartWithSize={handleAddToCartWithSize}
+          />
+        </motion.div>
+      );
+    },
+  });
+
+  // Render browse_full_catalog tool results as a product carousel
+  // This tool is used by contextual_shopping_agent for gift/recommendation queries
+  useRenderToolCall({
+    name: "browse_full_catalog",
+    render: ({ status, result }) => {
+      log('TOOL', `browse_full_catalog - status: ${status}`, { hasResult: !!result });
+
+      // Only show our custom UI when we have results
+      if (!result) {
+        return <></>; // Let CopilotChat show default loading
+      }
+
+      // Parse using the same function as search_products
+      const products = parseSearchResults(result);
+      log('TOOL', `browse_full_catalog parsed ${products.length} products`);
+
+      if (!products || products.length === 0) {
+        return (
+          <div className="p-4 bg-gray-50 rounded-xl my-2 text-gray-500">
+            No products available in catalog.
+          </div>
+        );
+      }
+
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="my-4"
+        >
+          <ProductCarousel
+            products={products}
             onAddToCart={handleAddToCart}
             onAddToCartWithSize={handleAddToCartWithSize}
           />
@@ -393,7 +457,7 @@ function extractImageUrl(imageData: unknown): string | undefined {
 // - total_relevant: filtered count
 // - query: the search query
 function parseSearchResults(result: unknown): Product[] {
-  console.log("[parseSearchResults] Raw result:", result);
+  log('PARSE', 'parseSearchResults input', { type: typeof result });
 
   try {
     let data = result;
@@ -403,7 +467,7 @@ function parseSearchResults(result: unknown): Product[] {
       try {
         data = JSON.parse(data);
       } catch {
-        console.log("[parseSearchResults] Could not parse string as JSON");
+        log('PARSE', 'Could not parse string as JSON');
         return [];
       }
     }
@@ -416,7 +480,7 @@ function parseSearchResults(result: unknown): Product[] {
     // First check for our custom search_products tool response format
     if (response?.products && Array.isArray(response.products)) {
       products = response.products;
-      console.log(`[parseSearchResults] Found ${products.length} relevant products out of ${response.total_found || 'unknown'} total`);
+      log('PARSE', `Found ${products.length} relevant products out of ${response.total_found || 'unknown'} total`);
     } else if (Array.isArray(response)) {
       products = response;
     } else if (response?.data && typeof response.data === 'object') {
@@ -444,22 +508,19 @@ function parseSearchResults(result: unknown): Product[] {
               products = parsed.result;
             }
           } catch {
-            console.log("[parseSearchResults] Could not parse content text as JSON");
+            log('PARSE', 'Could not parse content text as JSON');
             return [];
           }
         }
       }
     }
 
-    console.log("[parseSearchResults] Found products array:", products.length);
+    log('PARSE', `Found products array: ${products.length}`);
     // Log first product structure for debugging
     if (products.length > 0) {
       const firstProduct = products[0] as Record<string, unknown>;
-      console.log("[parseSearchResults] First product keys:", Object.keys(firstProduct));
-      console.log("[parseSearchResults] First product FULL:", JSON.stringify(firstProduct, null, 2));
-      console.log("[parseSearchResults] availabilityMatrix:", firstProduct.availabilityMatrix);
-      console.log("[parseSearchResults] variants:", firstProduct.variants);
-      console.log("[parseSearchResults] options:", firstProduct.options);
+      log('PARSE', 'First product keys', Object.keys(firstProduct));
+      log('PARSE', 'First product structure', { availabilityMatrix: firstProduct.availabilityMatrix, variants: firstProduct.variants });
     }
 
     // Map products to our Product interface
@@ -666,18 +727,18 @@ function parseSearchResults(result: unknown): Product[] {
         }) : undefined,
       };
 
-      console.log("[parseSearchResults] Mapped product:", mapped.title, "availabilityMatrix:", mapped.availabilityMatrix?.length || 0, "items");
+      log('PARSE', `Mapped: ${mapped.title}`, { sizes: mapped.availabilityMatrix?.length || 0 });
       return mapped;
     }).filter((p) => p.id || p.title);
   } catch (e) {
-    console.error("Error parsing search results:", e, result);
+    log('ERROR', 'Error parsing search results', e);
     return [];
   }
 }
 
 // Helper function to parse single product details from Storefront MCP response
 function parseProductDetails(result: unknown): Product | null {
-  console.log("[parseProductDetails] Raw result:", result);
+  log('PARSE', 'parseProductDetails input', { type: typeof result });
 
   try {
     let data = result;
@@ -897,10 +958,10 @@ function parseProductDetails(result: unknown): Product | null {
       }) : undefined,
     };
 
-    console.log("[parseProductDetails] Mapped product:", mapped.title, "imageUrl:", mapped.imageUrl, "productUrl:", mapped.productUrl);
+    log('PARSE', `Mapped product: ${mapped.title}`, { imageUrl: !!mapped.imageUrl, productUrl: !!mapped.productUrl });
     return mapped;
   } catch (e) {
-    console.error("Error parsing product details:", e, result);
+    log('ERROR', 'Error parsing product details', e);
     return null;
   }
 }

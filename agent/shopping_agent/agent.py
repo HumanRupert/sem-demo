@@ -11,10 +11,22 @@ Architecture:
 """
 
 import json
+import logging
 import os
 import httpx
 from google import genai
 from google.adk.agents import LlmAgent
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("shopping_agent")
 
 # Shopify Storefront MCP configuration for Allbirds store
 SHOPIFY_MCP_URL = "https://www.allbirds.com/api/mcp"
@@ -41,6 +53,8 @@ async def search_products(query: str, context: str = "") -> dict:
     Returns:
         A dictionary containing filtered products that are relevant to the query
     """
+    logger.info(f"[TOOL] search_products called - query: '{query}', context: '{context}'")
+
     # Step 1: Call Shopify MCP to get search results
     async with httpx.AsyncClient(timeout=30.0) as client:
         mcp_request = {
@@ -56,21 +70,28 @@ async def search_products(query: str, context: str = "") -> dict:
             }
         }
 
+        logger.debug(f"[MCP REQUEST] {json.dumps(mcp_request, indent=2)}")
+
         try:
             response = await client.post(SHOPIFY_MCP_URL, json=mcp_request)
             response.raise_for_status()
             mcp_response = response.json()
+            logger.debug(f"[MCP RESPONSE] Status: {response.status_code}")
         except Exception as e:
+            logger.error(f"[MCP ERROR] Failed to search products: {str(e)}")
             return {"error": f"Failed to search products: {str(e)}", "products": []}
 
     # Step 2: Parse products from MCP response
     products = parse_mcp_response(mcp_response)
+    logger.info(f"[MCP RESULT] Parsed {len(products)} products from response")
 
     if not products:
+        logger.warning("[MCP RESULT] No products found")
         return {"products": [], "message": "No products found for your search."}
 
     # Step 3: Use Gemini to filter for relevance
     filtered_products = await filter_products_with_llm(query, context, products)
+    logger.info(f"[FILTER RESULT] Kept {len(filtered_products)} of {len(products)} products")
 
     return {
         "products": filtered_products,
@@ -91,6 +112,8 @@ async def browse_full_catalog() -> dict:
     Returns:
         A dictionary containing all products in the catalog
     """
+    logger.info("[TOOL] browse_full_catalog called - fetching full catalog")
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         mcp_request = {
             "jsonrpc": "2.0",
@@ -105,16 +128,22 @@ async def browse_full_catalog() -> dict:
             }
         }
 
+        logger.debug(f"[MCP REQUEST] {json.dumps(mcp_request, indent=2)}")
+
         try:
             response = await client.post(SHOPIFY_MCP_URL, json=mcp_request)
             response.raise_for_status()
             mcp_response = response.json()
+            logger.debug(f"[MCP RESPONSE] Status: {response.status_code}")
         except Exception as e:
+            logger.error(f"[MCP ERROR] Failed to browse catalog: {str(e)}")
             return {"error": f"Failed to browse catalog: {str(e)}", "products": []}
 
     products = parse_mcp_response(mcp_response)
+    logger.info(f"[MCP RESULT] Loaded {len(products)} products from catalog")
 
     if not products:
+        logger.warning("[MCP RESULT] No products in catalog")
         return {"products": [], "message": "Unable to load product catalog."}
 
     return {
@@ -148,7 +177,7 @@ def parse_mcp_response(mcp_response: dict) -> list:
 
         return []
     except Exception as e:
-        print(f"Error parsing MCP response: {e}")
+        logger.error(f"[PARSE ERROR] Error parsing MCP response: {e}")
         return []
 
 
@@ -156,6 +185,8 @@ async def filter_products_with_llm(query: str, context: str, products: list) -> 
     """Use Gemini to filter products for relevance to the user's query."""
     if not products:
         return []
+
+    logger.info(f"[LLM FILTER] Filtering {len(products)} products for query: '{query}'")
 
     # Prepare a simplified version of products for the LLM
     simplified_products = []
@@ -186,6 +217,8 @@ If no products are relevant, return an empty array: []
 
 JSON array of relevant indices:"""
 
+    logger.debug(f"[LLM FILTER PROMPT] {filter_prompt[:500]}...")
+
     try:
         response = genai_client.models.generate_content(
             model='gemini-2.0-flash',
@@ -194,6 +227,8 @@ JSON array of relevant indices:"""
 
         # Parse the response to get indices
         response_text = response.text.strip()
+        logger.debug(f"[LLM FILTER RESPONSE] {response_text}")
+
         # Clean up the response - remove markdown code blocks if present
         if response_text.startswith("```"):
             response_text = response_text.split("```")[1]
@@ -202,13 +237,14 @@ JSON array of relevant indices:"""
         response_text = response_text.strip()
 
         relevant_indices = json.loads(response_text)
+        logger.info(f"[LLM FILTER] Selected indices: {relevant_indices}")
 
         # Return only the relevant products
         filtered = [products[i] for i in relevant_indices if i < len(products)]
         return filtered if filtered else products[:5]  # Fallback to top 5 if filtering fails
 
     except Exception as e:
-        print(f"Error filtering products with LLM: {e}")
+        logger.error(f"[LLM FILTER ERROR] Error filtering products: {e}")
         # On error, return original products (limited to 10)
         return products[:10]
 
@@ -217,9 +253,9 @@ JSON array of relevant indices:"""
 # AGENT PROMPTS
 # =============================================================================
 
-COORDINATOR_PROMPT = """You are the shopping assistant coordinator for Allbirds, a sustainable footwear and apparel brand.
+COORDINATOR_PROMPT = """You are the shopping assistant coordinator for Allbirds.
 
-Your job is to analyze customer requests and route them to the appropriate specialist agent.
+Your ONLY job is to silently analyze and route requests to the appropriate specialist agent.
 
 ## Routing Rules
 
@@ -229,11 +265,7 @@ Your job is to analyze customer requests and route them to the appropriate speci
 - Knows what category or type they want
 - Uses product-specific language
 
-Examples that should go to direct_search_agent:
-- "Show me running shoes"
-- "I need wool socks"
-- "Do you have any jackets?"
-- "Looking for comfortable sneakers"
+Examples: "Show me running shoes", "I need wool socks", "Do you have jackets?"
 
 **Route to contextual_shopping_agent when the customer:**
 - Asks for gift suggestions or recommendations
@@ -242,27 +274,20 @@ Examples that should go to direct_search_agent:
 - Doesn't specify what type of product they want
 - Needs help figuring out what to buy
 
-Examples that should go to contextual_shopping_agent:
-- "I'm looking for Christmas gifts for my dad"
-- "What would be good for someone who travels a lot?"
-- "I need a birthday present for my wife"
-- "Something cozy for winter"
-- "Help me find a gift for a runner"
+Examples: "Christmas gifts for my dad", "Something cozy for winter", "Gift for a runner"
 
-## Important Guidelines
+## CRITICAL: Silent Routing
 
-- ALWAYS route product-related questions to one of the specialist agents
-- Never search for products yourself - that's what the specialists are for
-- Be friendly and acknowledge the customer's request before routing
-- If unclear, lean toward contextual_shopping_agent (they'll ask follow-up questions)
+- DO NOT say anything like "I'll route you to..." or "Let me connect you..."
+- DO NOT acknowledge or repeat the user's request
+- Simply route to the appropriate agent immediately and silently
+- The specialist agent will handle ALL communication with the user
+- If unclear which agent to use, route to contextual_shopping_agent
 
-## Cart and Checkout
+## Cart Operations (handle directly)
 
 You can directly handle cart operations:
-- Use addToCart to add items (include productId, variantId, title, price, quantity, image)
-- Use removeFromCart to remove items (by productId)
-- Use getCart to check what's in their cart
-- Use openCheckout when they're ready to buy
+- addToCart, removeFromCart, getCart, openCheckout
 """
 
 DIRECT_SEARCH_PROMPT = """You are a product search specialist for Allbirds, a sustainable footwear and apparel brand.
@@ -361,3 +386,5 @@ root_agent = LlmAgent(
     instruction=COORDINATOR_PROMPT,
     sub_agents=[direct_search_agent, contextual_shopping_agent],
 )
+
+logger.info("[AGENT] Multi-agent system initialized: shopping_coordinator -> [direct_search_agent, contextual_shopping_agent]")
