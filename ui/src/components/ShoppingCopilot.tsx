@@ -533,17 +533,33 @@ function parseSearchResults(result: unknown): Product[] {
       let availabilityMatrix: AvailabilityOption[] | undefined;
 
       // First check for direct availabilityMatrix from MCP
+      // Note: MCP returns availabilityMatrix as array of SIZE STRINGS for shoes (e.g., ["8", "8.5", "9"])
+      // or as array of objects for other products
       if (product.availabilityMatrix && Array.isArray(product.availabilityMatrix)) {
-        availabilityMatrix = (product.availabilityMatrix as unknown[]).map((item: unknown) => {
-          const opt = item as Record<string, unknown>;
-          return {
-            variantId: String(opt.variantId || opt.variant_id || ""),
-            size: opt.size ? String(opt.size) : undefined,
-            color: opt.color ? String(opt.color) : undefined,
-            available: Boolean(opt.available ?? true),
-            price: opt.price ? String(opt.price) : undefined,
-          };
-        });
+        const firstItem = product.availabilityMatrix[0];
+
+        if (typeof firstItem === 'string') {
+          // Array of size strings - convert to AvailabilityOption format
+          availabilityMatrix = (product.availabilityMatrix as string[]).map((size: string, idx: number) => ({
+            variantId: `size-${idx}-${size}`,
+            size: size,
+            color: undefined,
+            available: true, // Assume available if in the list
+            price: price, // Use product price
+          }));
+        } else {
+          // Array of objects
+          availabilityMatrix = (product.availabilityMatrix as unknown[]).map((item: unknown) => {
+            const opt = item as Record<string, unknown>;
+            return {
+              variantId: String(opt.variantId || opt.variant_id || ""),
+              size: opt.size ? String(opt.size) : undefined,
+              color: opt.color ? String(opt.color) : undefined,
+              available: Boolean(opt.available ?? true),
+              price: opt.price ? String(opt.price) : undefined,
+            };
+          });
+        }
       }
 
       // If no availabilityMatrix, try to extract from various possible field names
@@ -744,17 +760,33 @@ function parseProductDetails(result: unknown): Product | null {
     let availabilityMatrix: AvailabilityOption[] | undefined;
 
     // First check for direct availabilityMatrix from MCP
+    // Note: MCP returns availabilityMatrix as array of SIZE STRINGS for shoes (e.g., ["8", "8.5", "9"])
+    // or as array of objects for other products
     if (product.availabilityMatrix && Array.isArray(product.availabilityMatrix)) {
-      availabilityMatrix = (product.availabilityMatrix as unknown[]).map((item: unknown) => {
-        const opt = item as Record<string, unknown>;
-        return {
-          variantId: String(opt.variantId || opt.variant_id || ""),
-          size: opt.size ? String(opt.size) : undefined,
-          color: opt.color ? String(opt.color) : undefined,
-          available: Boolean(opt.available ?? true),
-          price: opt.price ? String(opt.price) : undefined,
-        };
-      });
+      const firstItem = product.availabilityMatrix[0];
+
+      if (typeof firstItem === 'string') {
+        // Array of size strings - convert to AvailabilityOption format
+        availabilityMatrix = (product.availabilityMatrix as string[]).map((size: string, idx: number) => ({
+          variantId: `size-${idx}-${size}`,
+          size: size,
+          color: undefined,
+          available: true, // Assume available if in the list
+          price: price, // Use product price
+        }));
+      } else {
+        // Array of objects
+        availabilityMatrix = (product.availabilityMatrix as unknown[]).map((item: unknown) => {
+          const opt = item as Record<string, unknown>;
+          return {
+            variantId: String(opt.variantId || opt.variant_id || ""),
+            size: opt.size ? String(opt.size) : undefined,
+            color: opt.color ? String(opt.color) : undefined,
+            available: Boolean(opt.available ?? true),
+            price: opt.price ? String(opt.price) : undefined,
+          };
+        });
+      }
     }
 
     // If no availabilityMatrix, try to extract from various possible field names
