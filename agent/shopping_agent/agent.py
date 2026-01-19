@@ -1,11 +1,13 @@
 """
 AI Shopping Agent with Shopify Storefront MCP integration.
 
-This agent connects to the Shopify Storefront MCP server to provide
-product search and browsing capabilities through natural conversation.
+This multi-agent system uses a coordinator pattern to handle both direct
+product searches and context-aware queries (like gift suggestions).
 
-Search results are filtered by an LLM to ensure only relevant products
-are shown to the user.
+Architecture:
+- ShoppingCoordinator (root): Routes queries to appropriate sub-agents
+- DirectSearchAgent: Handles specific product searches ("running shoes")
+- ContextualShoppingAgent: Handles gifts/recommendations with follow-up questions
 """
 
 import json
@@ -20,6 +22,10 @@ SHOPIFY_MCP_URL = "https://www.allbirds.com/api/mcp"
 # Configure Gemini client for filtering (uses same API key as ADK)
 genai_client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
+
+# =============================================================================
+# TOOLS
+# =============================================================================
 
 async def search_products(query: str, context: str = "") -> dict:
     """
@@ -71,6 +77,50 @@ async def search_products(query: str, context: str = "") -> dict:
         "total_found": len(products),
         "total_relevant": len(filtered_products),
         "query": query
+    }
+
+
+async def browse_full_catalog() -> dict:
+    """
+    Browse the full Allbirds product catalog for semantic matching.
+
+    This tool fetches all available products without keyword filtering,
+    allowing the agent to semantically match products to user requirements
+    (e.g., for gift suggestions or vague queries).
+
+    Returns:
+        A dictionary containing all products in the catalog
+    """
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        mcp_request = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "id": 1,
+            "params": {
+                "name": "search_shop_catalog",
+                "arguments": {
+                    "query": "",  # Empty query to get all products
+                    "context": "Browse full product catalog for recommendations"
+                }
+            }
+        }
+
+        try:
+            response = await client.post(SHOPIFY_MCP_URL, json=mcp_request)
+            response.raise_for_status()
+            mcp_response = response.json()
+        except Exception as e:
+            return {"error": f"Failed to browse catalog: {str(e)}", "products": []}
+
+    products = parse_mcp_response(mcp_response)
+
+    if not products:
+        return {"products": [], "message": "Unable to load product catalog."}
+
+    return {
+        "products": products,
+        "total_products": len(products),
+        "message": "Full catalog loaded. Use your judgment to recommend the best products."
     }
 
 
@@ -163,43 +213,151 @@ JSON array of relevant indices:"""
         return products[:10]
 
 
-SYSTEM_PROMPT = """You are a friendly and knowledgeable shopping assistant for Allbirds,
-a sustainable footwear and apparel brand. Your role is to help customers discover products,
-answer questions, and guide them through their shopping journey.
+# =============================================================================
+# AGENT PROMPTS
+# =============================================================================
 
-## Your Capabilities
+COORDINATOR_PROMPT = """You are the shopping assistant coordinator for Allbirds, a sustainable footwear and apparel brand.
 
-1. **Product Search**: Use the search_products tool to find products.
-   - This tool automatically filters results to show only relevant items
-   - For example, searching "shoes" will only show actual footwear, not shoe accessories
+Your job is to analyze customer requests and route them to the appropriate specialist agent.
 
-2. **Cart Management**: Help customers manage their shopping cart.
-   - Use addToCart to add items (include productId, variantId, title, price, quantity, image)
-   - Use removeFromCart to remove items (by productId)
-   - Use getCart to check what's in their cart
+## Routing Rules
 
-3. **Checkout**: When customers are ready to buy, use openCheckout to start the checkout flow.
+**Route to direct_search_agent when the customer:**
+- Asks for specific products (shoes, socks, jacket, sweater, sneakers)
+- Mentions specific features (running, wool, waterproof, lightweight)
+- Knows what category or type they want
+- Uses product-specific language
+
+Examples that should go to direct_search_agent:
+- "Show me running shoes"
+- "I need wool socks"
+- "Do you have any jackets?"
+- "Looking for comfortable sneakers"
+
+**Route to contextual_shopping_agent when the customer:**
+- Asks for gift suggestions or recommendations
+- Has vague or abstract requirements
+- Mentions an occasion (birthday, Christmas, anniversary, graduation)
+- Doesn't specify what type of product they want
+- Needs help figuring out what to buy
+
+Examples that should go to contextual_shopping_agent:
+- "I'm looking for Christmas gifts for my dad"
+- "What would be good for someone who travels a lot?"
+- "I need a birthday present for my wife"
+- "Something cozy for winter"
+- "Help me find a gift for a runner"
+
+## Important Guidelines
+
+- ALWAYS route product-related questions to one of the specialist agents
+- Never search for products yourself - that's what the specialists are for
+- Be friendly and acknowledge the customer's request before routing
+- If unclear, lean toward contextual_shopping_agent (they'll ask follow-up questions)
+
+## Cart and Checkout
+
+You can directly handle cart operations:
+- Use addToCart to add items (include productId, variantId, title, price, quantity, image)
+- Use removeFromCart to remove items (by productId)
+- Use getCart to check what's in their cart
+- Use openCheckout when they're ready to buy
+"""
+
+DIRECT_SEARCH_PROMPT = """You are a product search specialist for Allbirds, a sustainable footwear and apparel brand.
+
+You help customers who know what type of product they're looking for.
+
+## Your Role
+
+When customers ask for specific products:
+1. Use the search_products tool with their query
+2. Present the relevant results with key features highlighted
+3. Help them narrow down by size, color, or features if needed
+4. Offer to add items to cart when they're ready
 
 ## Guidelines
 
-- Be conversational, helpful, and enthusiastic about Allbirds' sustainable products
-- When showing products, highlight key features like materials, comfort, and sustainability
-- Always confirm product details (size, color) before adding to cart
-- Proactively offer to help with sizing or product recommendations
-- Keep responses concise but informative
-- When adding to cart, extract the correct variant based on customer's size/color preferences
+- Be efficient and helpful - these customers know what they're looking for
+- Highlight Allbirds' key values: sustainability, comfort, quality materials
+- When showing results, briefly describe each product's best features
+- If they mention size or color preferences, help them find the right variant
+- Always confirm details before adding to cart
 
-## Response Format
+## Response Style
 
-When presenting search results, briefly describe each product. Let the UI handle the visual display.
-When the user wants to add something to cart, confirm the specific variant (size, color) first.
+Keep responses concise but informative. Let the product cards do the visual work.
+Focus on helping them make a decision quickly.
+"""
+
+CONTEXTUAL_SHOPPING_PROMPT = """You are a thoughtful shopping advisor for Allbirds, a sustainable footwear and apparel brand.
+
+You help customers who need recommendations, gift suggestions, or aren't sure what they want.
+
+## Your Approach
+
+**Step 1: Gather Information (CRITICAL - always do this first!)**
+
+Before searching for products, ask 1-2 focused questions to understand:
+- Who is it for? (themselves, a gift recipient - age, gender, relationship)
+- What's their lifestyle? (active, casual, professional, outdoorsy)
+- Any specific needs? (comfort, style, durability, specific activity)
+- Occasion? (everyday use, special event, holiday gift)
+- Any preferences? (colors, materials they like or avoid)
+
+Example questions:
+- "I'd love to help find the perfect gift! Can you tell me a bit about your dad - what are his interests and is he usually active or more casual?"
+- "Great choice thinking of Allbirds! What's the occasion, and does your friend have any style preferences?"
+
+**Step 2: Browse and Match**
+
+Once you understand their needs:
+1. Use browse_full_catalog to see all available products
+2. Review the products with their requirements in mind
+3. Recommend 3-5 products that best match, explaining WHY each is a good fit
+
+## Guidelines
+
+- NEVER search before asking questions - you need context first!
+- Be warm, conversational, and genuinely helpful
+- Focus on Allbirds' strengths: sustainable materials, comfort, versatility
+- Explain your recommendations in terms of the person's specific needs
+- After recommending, ask if they'd like to hear more about any specific product
+
+## Response Style
+
+Be personable and thoughtful. You're like a knowledgeable friend helping them shop.
+Show that you're listening by referencing details they shared.
 """
 
 
-# Create the agent with the custom search tool
-root_agent = LlmAgent(
-    name="shopping_assistant",
+# =============================================================================
+# AGENT DEFINITIONS
+# =============================================================================
+
+# Direct Search Agent - for specific product queries
+direct_search_agent = LlmAgent(
+    name="direct_search_agent",
     model="gemini-2.0-flash",
-    instruction=SYSTEM_PROMPT,
-    tools=[search_products],  # Use our custom filtered search tool
+    description="Handles specific product searches when user knows what they want (e.g., 'running shoes', 'wool socks', 'jackets')",
+    instruction=DIRECT_SEARCH_PROMPT,
+    tools=[search_products],
+)
+
+# Contextual Shopping Agent - for gifts, recommendations, vague queries
+contextual_shopping_agent = LlmAgent(
+    name="contextual_shopping_agent",
+    model="gemini-2.0-flash",
+    description="Handles gift suggestions, recommendations, and vague queries that need clarification (e.g., 'gifts for dad', 'something cozy')",
+    instruction=CONTEXTUAL_SHOPPING_PROMPT,
+    tools=[browse_full_catalog],
+)
+
+# Root Coordinator Agent
+root_agent = LlmAgent(
+    name="shopping_coordinator",
+    model="gemini-2.0-flash",
+    instruction=COORDINATOR_PROMPT,
+    sub_agents=[direct_search_agent, contextual_shopping_agent],
 )
