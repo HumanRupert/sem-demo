@@ -4,13 +4,15 @@ import { useRef, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ProductCard, Product, ProductVariant } from "./ProductCard";
+import { AvailabilityOption } from "./SizeSelector";
 
 interface ProductCarouselProps {
   products: Product[];
   onAddToCart?: (product: Product, variant?: ProductVariant) => void;
+  onAddToCartWithSize?: (product: Product, option: AvailabilityOption) => void;
 }
 
-export function ProductCarousel({ products, onAddToCart }: ProductCarouselProps) {
+export function ProductCarousel({ products, onAddToCart, onAddToCartWithSize }: ProductCarouselProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -100,7 +102,7 @@ export function ProductCarousel({ products, onAddToCart }: ProductCarouselProps)
             transition={{ delay: index * 0.1 }}
             className="flex-shrink-0 w-[calc(33.333%-11px)] min-w-[200px] snap-start"
           >
-            <ProductCard product={product} onAddToCart={onAddToCart} />
+            <ProductCard product={product} onAddToCart={onAddToCart} onAddToCartWithSize={onAddToCartWithSize} />
           </motion.div>
         ))}
       </motion.div>

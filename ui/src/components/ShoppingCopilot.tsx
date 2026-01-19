@@ -318,7 +318,11 @@ function GenerativeUI() {
           animate={{ opacity: 1, y: 0 }}
           className="my-4"
         >
-          <ProductCarousel products={products} />
+          <ProductCarousel
+            products={products}
+            onAddToCart={handleAddToCart}
+            onAddToCartWithSize={handleAddToCartWithSize}
+          />
         </motion.div>
       );
     },
