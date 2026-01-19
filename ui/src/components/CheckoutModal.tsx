@@ -209,7 +209,7 @@ export function CheckoutModal() {
                                 email: e.target.value,
                               })
                             }
-                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white"
+                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400"
                             placeholder="you@example.com"
                           />
                         </div>
@@ -229,7 +229,7 @@ export function CheckoutModal() {
                                   firstName: e.target.value,
                                 })
                               }
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white"
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400"
                               placeholder="John"
                             />
                           </div>
@@ -247,7 +247,7 @@ export function CheckoutModal() {
                                   lastName: e.target.value,
                                 })
                               }
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white"
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400"
                               placeholder="Doe"
                             />
                           </div>
@@ -267,7 +267,7 @@ export function CheckoutModal() {
                                 address: e.target.value,
                               })
                             }
-                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white"
+                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400"
                             placeholder="123 Main Street"
                           />
                         </div>
@@ -287,7 +287,7 @@ export function CheckoutModal() {
                                   city: e.target.value,
                                 })
                               }
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white"
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400"
                               placeholder="San Francisco"
                             />
                           </div>
@@ -305,7 +305,7 @@ export function CheckoutModal() {
                                   state: e.target.value,
                                 })
                               }
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white"
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400"
                               placeholder="CA"
                             />
                           </div>
@@ -323,7 +323,7 @@ export function CheckoutModal() {
                                   zip: e.target.value,
                                 })
                               }
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white"
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400"
                               placeholder="94102"
                             />
                           </div>
@@ -384,7 +384,7 @@ export function CheckoutModal() {
                             type="text"
                             required
                             placeholder="4242 4242 4242 4242"
-                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white font-mono"
+                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400 font-mono"
                           />
                         </div>
 
@@ -397,7 +397,7 @@ export function CheckoutModal() {
                               type="text"
                               required
                               placeholder="MM / YY"
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white font-mono"
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400 font-mono"
                             />
                           </div>
                           <div>
@@ -408,7 +408,7 @@ export function CheckoutModal() {
                               type="text"
                               required
                               placeholder="CVC"
-                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white font-mono"
+                              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all bg-gray-50 focus:bg-white text-gray-900 placeholder:text-gray-400 font-mono"
                             />
                           </div>
                         </div>
