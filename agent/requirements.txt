@@ -1,5 +1,4 @@
 google-adk>=0.3.0
-google-generativeai>=0.8.0
 mcp>=1.0.0
 ag-ui-adk>=0.0.3
 fastapi>=0.115.0
