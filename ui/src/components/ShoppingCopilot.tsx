@@ -546,13 +546,16 @@ function parseSearchResults(result: unknown): Product[] {
         });
       }
 
-      // If no availabilityMatrix but has variants, convert variants to availabilityMatrix
-      if (!availabilityMatrix && product.variants && Array.isArray(product.variants)) {
-        availabilityMatrix = (product.variants as unknown[]).map((v: unknown) => {
+      // If no availabilityMatrix, try to extract from various possible field names
+      // Check: variants, available_sizes, size_options, options
+      const variantsData = product.variants || product.available_variants || product.variant_options;
+
+      if (!availabilityMatrix && variantsData && Array.isArray(variantsData)) {
+        availabilityMatrix = (variantsData as unknown[]).map((v: unknown) => {
           const variant = v as Record<string, unknown>;
 
           // Parse size/color from variant title (e.g., "10 / Natural Black", "M", "Large / Blue")
-          const title = String(variant.title || "");
+          const title = String(variant.title || variant.name || "");
           let size: string | undefined;
           let color: string | undefined;
 
@@ -566,6 +569,10 @@ function parseSearchResults(result: unknown): Product[] {
             size = title.trim();
           }
 
+          // Also check for explicit size/color fields
+          if (!size && variant.size) size = String(variant.size);
+          if (!color && variant.color) color = String(variant.color);
+
           // Extract price
           let variantPrice: string | undefined;
           if (variant.price !== undefined) {
@@ -576,10 +583,38 @@ function parseSearchResults(result: unknown): Product[] {
             variantId: String(variant.id || variant.variantId || variant.variant_id || ""),
             size,
             color,
-            available: Boolean(variant.available ?? variant.availableForSale ?? true),
+            available: Boolean(variant.available ?? variant.availableForSale ?? variant.in_stock ?? true),
             price: variantPrice,
           };
         }).filter(opt => opt.variantId); // Filter out invalid entries
+      }
+
+      // Also try to build from available_sizes array (simple string array of sizes)
+      if (!availabilityMatrix || availabilityMatrix.length === 0) {
+        const availableSizes = product.available_sizes || product.sizes || product.size_options;
+        if (availableSizes && Array.isArray(availableSizes)) {
+          availabilityMatrix = (availableSizes as unknown[]).map((s: unknown, idx: number) => {
+            if (typeof s === 'string') {
+              return {
+                variantId: `size-${idx}`,
+                size: s,
+                color: undefined,
+                available: true,
+                price: undefined,
+              };
+            } else if (typeof s === 'object' && s !== null) {
+              const sizeObj = s as Record<string, unknown>;
+              return {
+                variantId: String(sizeObj.id || sizeObj.variant_id || `size-${idx}`),
+                size: sizeObj.size ? String(sizeObj.size) : sizeObj.value ? String(sizeObj.value) : undefined,
+                color: sizeObj.color ? String(sizeObj.color) : undefined,
+                available: Boolean(sizeObj.available ?? sizeObj.in_stock ?? true),
+                price: sizeObj.price ? String(sizeObj.price) : undefined,
+              };
+            }
+            return null;
+          }).filter((opt): opt is AvailabilityOption => opt !== null && (!!opt.size || !!opt.color));
+        }
       }
 
       const mapped: Product = {
@@ -722,13 +757,15 @@ function parseProductDetails(result: unknown): Product | null {
       });
     }
 
-    // If no availabilityMatrix but has variants, convert variants to availabilityMatrix
-    if (!availabilityMatrix && product.variants && Array.isArray(product.variants)) {
-      availabilityMatrix = (product.variants as unknown[]).map((v: unknown) => {
+    // If no availabilityMatrix, try to extract from various possible field names
+    const variantsData = product.variants || product.available_variants || product.variant_options;
+
+    if (!availabilityMatrix && variantsData && Array.isArray(variantsData)) {
+      availabilityMatrix = (variantsData as unknown[]).map((v: unknown) => {
         const variant = v as Record<string, unknown>;
 
         // Parse size/color from variant title (e.g., "10 / Natural Black", "M", "Large / Blue")
-        const title = String(variant.title || "");
+        const title = String(variant.title || variant.name || "");
         let size: string | undefined;
         let color: string | undefined;
 
@@ -742,6 +779,10 @@ function parseProductDetails(result: unknown): Product | null {
           size = title.trim();
         }
 
+        // Also check for explicit size/color fields
+        if (!size && variant.size) size = String(variant.size);
+        if (!color && variant.color) color = String(variant.color);
+
         // Extract price
         let variantPrice: string | undefined;
         if (variant.price !== undefined) {
@@ -752,10 +793,38 @@ function parseProductDetails(result: unknown): Product | null {
           variantId: String(variant.id || variant.variantId || variant.variant_id || ""),
           size,
           color,
-          available: Boolean(variant.available ?? variant.availableForSale ?? true),
+          available: Boolean(variant.available ?? variant.availableForSale ?? variant.in_stock ?? true),
           price: variantPrice,
         };
       }).filter(opt => opt.variantId); // Filter out invalid entries
+    }
+
+    // Also try to build from available_sizes array (simple string array of sizes)
+    if (!availabilityMatrix || availabilityMatrix.length === 0) {
+      const availableSizes = product.available_sizes || product.sizes || product.size_options;
+      if (availableSizes && Array.isArray(availableSizes)) {
+        availabilityMatrix = (availableSizes as unknown[]).map((s: unknown, idx: number) => {
+          if (typeof s === 'string') {
+            return {
+              variantId: `size-${idx}`,
+              size: s,
+              color: undefined,
+              available: true,
+              price: undefined,
+            };
+          } else if (typeof s === 'object' && s !== null) {
+            const sizeObj = s as Record<string, unknown>;
+            return {
+              variantId: String(sizeObj.id || sizeObj.variant_id || `size-${idx}`),
+              size: sizeObj.size ? String(sizeObj.size) : sizeObj.value ? String(sizeObj.value) : undefined,
+              color: sizeObj.color ? String(sizeObj.color) : undefined,
+              available: Boolean(sizeObj.available ?? sizeObj.in_stock ?? true),
+              price: sizeObj.price ? String(sizeObj.price) : undefined,
+            };
+          }
+          return null;
+        }).filter((opt): opt is AvailabilityOption => opt !== null && (!!opt.size || !!opt.color));
+      }
     }
 
     const mapped: Product = {
