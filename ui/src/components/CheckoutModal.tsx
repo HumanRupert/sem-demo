@@ -12,11 +12,55 @@ import {
   Lock,
   Shield,
   Truck,
+  Fingerprint,
+  ShoppingBag,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/utils";
 
-type CheckoutStep = "shipping" | "payment" | "confirmation";
+type CheckoutStep = "review" | "shipping" | "payment" | "confirmation";
+
+// WebAuthn biometric confirmation helper
+async function requestBiometricConfirmation(): Promise<boolean> {
+  // Check if WebAuthn is supported
+  if (typeof window === "undefined" || !window.PublicKeyCredential) {
+    console.log("WebAuthn not supported, skipping biometric");
+    return true; // Fallback: allow without biometric
+  }
+
+  try {
+    // Create a challenge for the credential request
+    const challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+
+    // Request biometric verification (creates a new credential)
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: "Allbirds Shopping Demo", id: window.location.hostname },
+        user: {
+          id: new Uint8Array(16),
+          name: "demo@allbirds.com",
+          displayName: "Demo User",
+        },
+        pubKeyCredParams: [
+          { alg: -7, type: "public-key" },   // ES256
+          { alg: -257, type: "public-key" }, // RS256
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform", // Use built-in biometric
+          userVerification: "required",
+        },
+        timeout: 60000,
+      },
+    });
+
+    return !!credential;
+  } catch (error) {
+    console.log("Biometric verification failed or cancelled:", error);
+    return false;
+  }
+}
 
 interface ShippingInfo {
   email: string;
@@ -32,8 +76,9 @@ interface ShippingInfo {
 export function CheckoutModal() {
   const { isCheckoutOpen, closeCheckout, items, totalPrice, clearCart } =
     useCart();
-  const [step, setStep] = useState<CheckoutStep>("shipping");
+  const [step, setStep] = useState<CheckoutStep>("review");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
     email: "",
     firstName: "",
@@ -45,6 +90,16 @@ export function CheckoutModal() {
     country: "United States",
   });
   const [orderNumber, setOrderNumber] = useState("");
+
+  const handleBiometricConfirm = async () => {
+    setIsVerifying(true);
+    const success = await requestBiometricConfirmation();
+    setIsVerifying(false);
+
+    if (success) {
+      setStep("shipping");
+    }
+  };
 
   const handleShippingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +122,7 @@ export function CheckoutModal() {
   const handleClose = () => {
     if (step === "confirmation") {
       clearCart();
-      setStep("shipping");
+      setStep("review");
       setShippingInfo({
         email: "",
         firstName: "",
@@ -83,6 +138,7 @@ export function CheckoutModal() {
   };
 
   const steps = [
+    { key: "review", label: "Review", icon: ShoppingBag },
     { key: "shipping", label: "Shipping", icon: Package },
     { key: "payment", label: "Payment", icon: CreditCard },
     { key: "confirmation", label: "Done", icon: Check },
@@ -179,6 +235,84 @@ export function CheckoutModal() {
                 {/* Main Form Area */}
                 <div className="flex-1 p-6">
                   <AnimatePresence mode="wait">
+                    {step === "review" && (
+                      <motion.div
+                        key="review"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        className="space-y-6"
+                      >
+                        <div className="flex items-center gap-2 mb-4">
+                          <ShoppingBag className="w-5 h-5 text-gray-600" />
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Review Your Order
+                          </h3>
+                        </div>
+
+                        {/* Cart items list */}
+                        <div className="space-y-4 max-h-64 overflow-y-auto">
+                          {items.map((item) => (
+                            <div key={item.variantId} className="flex gap-4 bg-gray-50 p-3 rounded-xl">
+                              {item.image && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={item.image} alt={item.title} className="w-16 h-16 object-cover rounded-lg bg-gray-100" />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 truncate">{item.title}</p>
+                                {item.variantTitle && (
+                                  <p className="text-sm text-gray-500">{item.variantTitle}</p>
+                                )}
+                                <div className="flex justify-between mt-1">
+                                  <span className="text-sm text-gray-500">Qty: {item.quantity}</span>
+                                  <span className="font-medium text-gray-900">{formatPrice(item.price * item.quantity)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Order total */}
+                        <div className="border-t pt-4 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Subtotal</span>
+                            <span className="text-gray-900">{formatPrice(totalPrice)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Estimated Tax</span>
+                            <span className="text-gray-900">{formatPrice(taxAmount)}</span>
+                          </div>
+                          <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                            <span className="text-gray-900">Total</span>
+                            <span className="text-gray-900">{formatPrice(finalTotal)}</span>
+                          </div>
+                        </div>
+
+                        {/* Biometric confirmation button */}
+                        <button
+                          onClick={handleBiometricConfirm}
+                          disabled={isVerifying}
+                          className="w-full bg-black text-white py-4 rounded-xl font-semibold hover:bg-gray-800 transition-all flex items-center justify-center gap-3 shadow-lg shadow-black/10 hover:shadow-xl hover:shadow-black/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isVerifying ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              Verifying...
+                            </>
+                          ) : (
+                            <>
+                              <Fingerprint className="w-5 h-5" />
+                              Confirm with Biometrics
+                            </>
+                          )}
+                        </button>
+
+                        <p className="text-xs text-center text-gray-400">
+                          Use Touch ID, Face ID, or your device&apos;s biometric to confirm
+                        </p>
+                      </motion.div>
+                    )}
+
                     {step === "shipping" && (
                       <motion.form
                         key="shipping"
