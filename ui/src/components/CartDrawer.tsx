@@ -43,7 +43,7 @@ export function CartDrawer() {
             <div className="flex items-center justify-between p-6 border-b">
               <div className="flex items-center gap-3">
                 <ShoppingBag className="w-5 h-5" />
-                <h2 className="text-lg font-semibold">Your Cart</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Your Cart</h2>
                 {totalItems > 0 && (
                   <span className="bg-black text-white text-xs font-medium px-2 py-0.5 rounded-full">
                     {totalItems}
@@ -97,7 +97,7 @@ export function CartDrawer() {
 
                       {/* Details */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-sm line-clamp-1">
+                        <h3 className="font-medium text-sm line-clamp-1 text-gray-900">
                           {item.title}
                         </h3>
                         {item.variantTitle && (
@@ -105,7 +105,7 @@ export function CartDrawer() {
                             {item.variantTitle}
                           </p>
                         )}
-                        <p className="font-medium mt-1">
+                        <p className="font-medium mt-1 text-gray-900">
                           {formatPrice(item.price)}
                         </p>
 
@@ -123,7 +123,7 @@ export function CartDrawer() {
                             >
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="px-3 text-sm font-medium">
+                            <span className="px-3 text-sm font-medium text-gray-900">
                               {item.quantity}
                             </span>
                             <button
@@ -157,7 +157,7 @@ export function CartDrawer() {
               <div className="border-t p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="text-xl font-semibold">
+                  <span className="text-xl font-semibold text-gray-900">
                     {formatPrice(totalPrice)}
                   </span>
                 </div>
