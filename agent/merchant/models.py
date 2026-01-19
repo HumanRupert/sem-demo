@@ -114,6 +114,24 @@ class AgentTrustUpdate(BaseModel):
     trust_level: TrustLevel
 
 
+class AgentRegisterRequest(BaseModel):
+    """
+    Request to register a new agent (TAP protocol).
+    Agents must provide a JWKS URI for public key verification.
+    """
+    name: str = Field(..., description="Display name of the agent")
+    provider: str = Field(..., description="Organization that operates the agent")
+    jwks_uri: str = Field(..., description="JWKS endpoint for public key verification (RFC 9421)")
+    description: Optional[str] = Field(None, description="Optional description of the agent")
+
+
+class AgentRegisterResponse(BaseModel):
+    """Response after registering an agent."""
+    agent: AgentResponse
+    key_fetched: bool
+    message: str
+
+
 # Customer Models
 class CustomerResponse(BaseModel):
     id: str

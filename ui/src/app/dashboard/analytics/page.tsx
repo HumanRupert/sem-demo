@@ -1,6 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
 
 interface OverviewMetrics {
   total_checkouts: number;
@@ -228,30 +240,119 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Revenue Trend (CSS-based chart) */}
+      {/* Revenue Trend - Beautiful Line Chart */}
       {trends.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h2>
-          <div className="h-48 flex items-end gap-1">
-            {trends.slice(-14).map((day, index) => (
-              <div key={day.date} className="flex-1 flex flex-col items-center">
-                <div
-                  className="w-full bg-gradient-to-t from-green-500 to-green-400 rounded-t transition-all duration-300 hover:from-green-600 hover:to-green-500"
-                  style={{ height: `${(day.revenue / maxRevenue) * 100}%`, minHeight: '4px' }}
-                  title={`${day.date}: ${formatCurrency(day.revenue)}`}
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trends} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                  }}
                 />
-              </div>
-            ))}
+                <YAxis
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                  tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                  }}
+                  formatter={(value: number) => [formatCurrency(value), 'Revenue']}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#10b981"
+                  strokeWidth={3}
+                  fill="url(#colorRevenue)"
+                  dot={false}
+                  activeDot={{ r: 6, fill: '#10b981', stroke: 'white', strokeWidth: 2 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-          <div className="flex justify-between mt-2 text-xs text-gray-500">
-            <span>{trends[Math.max(0, trends.length - 14)]?.date}</span>
-            <span>{trends[trends.length - 1]?.date}</span>
-          </div>
-          <div className="flex items-center justify-center gap-4 mt-4 text-sm text-gray-500">
-            <span className="flex items-center gap-2">
-              <span className="w-3 h-3 bg-green-500 rounded"></span>
-              Daily Revenue
-            </span>
+        </div>
+      )}
+
+      {/* Checkouts Trend - Line Chart */}
+      {trends.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Checkout Volume</h2>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trends} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                  }}
+                />
+                <YAxis
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                  }}
+                  formatter={(value: number, name: string) => {
+                    if (name === 'checkouts') return [value, 'Total Checkouts'];
+                    if (name === 'completed') return [value, 'Completed'];
+                    return [value, name];
+                  }}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="checkouts"
+                  name="Total"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 5, fill: '#6366f1', stroke: 'white', strokeWidth: 2 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="completed"
+                  name="Completed"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 5, fill: '#10b981', stroke: 'white', strokeWidth: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}

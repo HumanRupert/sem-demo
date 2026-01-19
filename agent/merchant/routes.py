@@ -12,6 +12,7 @@ from .database import get_db, Checkout, Agent, Mandate, Customer, CheckoutEvent,
 from .models import (
     CheckoutResponse, CheckoutDetail, CheckoutListResponse, CheckoutEventResponse,
     AgentResponse, AgentDetail, AgentTrustUpdate, AgentKeyResponse,
+    AgentRegisterRequest, AgentRegisterResponse,
     MandateResponse, MandateExport,
     OverviewMetrics, FunnelMetrics, AgentPerformance, AnalyticsTrends, TrendDataPoint,
     DisputeResponse, DisputeStatusUpdate, EvidencePackage,
@@ -319,6 +320,53 @@ def update_agent_trust(agent_id: str, update: AgentTrustUpdate, db: Session = De
     db.refresh(agent)
 
     return agent_to_response(agent)
+
+
+@router.post("/agents", response_model=AgentRegisterResponse)
+def register_agent(request: AgentRegisterRequest, db: Session = Depends(get_db)):
+    """
+    Register a new agent (TAP protocol).
+
+    Per TAP specification, agents must provide a JWKS URI for public key verification.
+    New agents start in 'probation' trust level until merchant reviews.
+    """
+    import uuid as uuid_module
+
+    # Generate unique agent ID
+    agent_id = f"agent_{uuid_module.uuid4().hex[:12]}"
+
+    # Check if agent with same JWKS URI already exists
+    existing = db.query(Agent).filter(Agent.jwks_uri == request.jwks_uri).first()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Agent with this JWKS URI already registered: {existing.name}"
+        )
+
+    # Create new agent in probation status
+    agent = Agent(
+        id=agent_id,
+        name=request.name,
+        provider=request.provider,
+        description=request.description,
+        jwks_uri=request.jwks_uri,
+        trust_level="probation",  # New agents start on probation
+        first_seen_at=datetime.utcnow(),
+        last_seen_at=datetime.utcnow(),
+        total_transactions=0,
+        successful_transactions=0,
+        declined_transactions=0,
+        disputed_transactions=0,
+    )
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
+
+    return AgentRegisterResponse(
+        agent=agent_to_response(agent),
+        key_fetched=False,  # In real implementation, would fetch JWKS
+        message=f"Agent '{request.name}' registered successfully. Status: probation. Review JWKS at {request.jwks_uri}"
+    )
 
 
 # =============================================================================

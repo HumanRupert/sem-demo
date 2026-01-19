@@ -21,29 +21,44 @@ import {
   fetchOverviewMetrics,
   fetchAgents,
   fetchCheckouts,
+  fetchTrends,
   type OverviewMetrics,
   type AgentResponse,
   type CheckoutResponse,
+  type TrendDataPoint,
 } from "@/lib/dashboard/api";
 import { formatPrice } from "@/lib/utils";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
   const [agents, setAgents] = useState<AgentResponse[]>([]);
   const [recentCheckouts, setRecentCheckouts] = useState<CheckoutResponse[]>([]);
+  const [trends, setTrends] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [metricsData, agentsData, checkoutsData] = await Promise.all([
+        const [metricsData, agentsData, checkoutsData, trendsData] = await Promise.all([
           fetchOverviewMetrics(),
           fetchAgents(),
           fetchCheckouts({ page_size: 5 }),
+          fetchTrends(14),
         ]);
         setMetrics(metricsData);
         setAgents(agentsData);
         setRecentCheckouts(checkoutsData.items);
+        // Use revenue trend data for the chart
+        setTrends(trendsData.revenue || []);
       } catch (error) {
         console.error("Failed to load dashboard data:", error);
       } finally {
@@ -134,6 +149,79 @@ export default function DashboardPage() {
           icon={<XCircle className="w-5 h-5 text-gray-600" />}
         />
       </div>
+
+      {/* Revenue Trend Chart */}
+      {trends.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Revenue Trend</h2>
+              <p className="text-sm text-gray-500">Last 14 days performance</p>
+            </div>
+            <Link
+              href="/dashboard/analytics"
+              className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1"
+            >
+              Full Analytics <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11, fill: '#9ca3af' }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                  }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#9ca3af' }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => `$${value}`}
+                  width={50}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+                    padding: '12px 16px',
+                  }}
+                  formatter={(value: number) => [formatPrice(value), 'Revenue']}
+                  labelFormatter={(label) => new Date(label).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#6366f1"
+                  strokeWidth={2.5}
+                  fill="url(#colorRevenue)"
+                  dot={false}
+                  activeDot={{
+                    r: 6,
+                    fill: '#6366f1',
+                    stroke: 'white',
+                    strokeWidth: 3,
+                  }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* Modality Split */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-8">

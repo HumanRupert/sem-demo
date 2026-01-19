@@ -367,11 +367,8 @@ def seed_database():
             else:
                 payment_status = "pending"
 
-            # Modality (80% human-present, 20% human-not-present)
-            modality = random.choices(
-                ["human_present", "human_not_present"],
-                weights=[80, 20]
-            )[0]
+            # ALL transactions are human-present per requirements
+            modality = "human_present"
 
             # Consumer recognition (40% known customers)
             is_known = random.random() < 0.40
@@ -441,6 +438,27 @@ def seed_database():
     print(f"  Created {checkout_count} checkouts")
 
     # ==========================================================================
+    # CREATE EXACTLY 1 DISPUTED CHECKOUT (per requirements)
+    # ==========================================================================
+    print("Creating disputed checkout...")
+    # Find a completed checkout to mark as disputed
+    completed_checkouts = [c for c in all_checkouts if c.status == "completed"]
+    if completed_checkouts:
+        disputed = completed_checkouts[0]
+        disputed.status = "disputed"
+        disputed.dispute_status = "under_review"
+        disputed.dispute_opened_at = disputed.created_at + timedelta(days=random.randint(1, 5))
+
+        # Update agent stats
+        agent = agent_objects.get(disputed.agent_id)
+        if agent:
+            agent["agent"].successful_transactions -= 1
+            agent["agent"].disputed_transactions += 1
+
+        session.commit()
+        print("  Created 1 disputed checkout")
+
+    # ==========================================================================
     # 4. CREATE MANDATES
     # ==========================================================================
     print("Creating mandates...")
@@ -465,26 +483,6 @@ def seed_database():
             )
             session.add(cart_mandate)
             checkout.cart_mandate_id = cart_mandate.id
-            mandate_count += 1
-
-        # Intent mandate for human-not-present
-        if checkout.modality == "human_not_present":
-            intent_mandate = Mandate(
-                id=generate_uuid(),
-                type="intent",
-                checkout_id=checkout.id,
-                payload=generate_mandate_payload("intent", checkout.id, checkout.cart_items, checkout.total, checkout.agent_id),
-                payload_hash=generate_hash(f"intent_{checkout.id}"),
-                user_signature=f"sig_user_intent_{generate_uuid()[:12]}",
-                user_signature_verified=True,
-                created_at=checkout.created_at - timedelta(minutes=random.randint(5, 60)),
-                expires_at=checkout.created_at + timedelta(hours=1),
-                status="used" if checkout.status == "completed" else "active",
-                ttl_seconds=3600,
-                prompt_playback=f"Purchase {len(checkout.cart_items)} items from Allbirds, budget ${checkout.total:.2f}",
-            )
-            session.add(intent_mandate)
-            checkout.intent_mandate_id = intent_mandate.id
             mandate_count += 1
 
         # Payment mandate for completed/captured
