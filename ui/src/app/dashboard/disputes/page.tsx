@@ -18,19 +18,28 @@ import {
   Legend,
 } from 'recharts';
 
-interface Dispute {
+interface Checkout {
   id: string;
-  checkout_id: string;
-  status: 'opened' | 'represented' | 'won' | 'lost';
-  opened_at: string;
-  amount: number;
-  agent_name: string;
+  total: number;
+  currency: string;
+  created_at: string;
+  dispute_status: 'opened' | 'represented' | 'won' | 'lost';
+  dispute_opened_at: string;
   agent_id: string;
-  reason?: string;
-  customer_email_hash?: string;
-  has_cart_mandate: boolean;
-  has_intent_mandate: boolean;
-  has_payment_mandate: boolean;
+  agent_provider: string;
+  user_email_hash?: string;
+}
+
+interface Mandate {
+  id: string;
+  type: 'cart' | 'intent' | 'payment';
+}
+
+interface Dispute {
+  checkout: Checkout;
+  mandates: Mandate[];
+  verification_logs: unknown[];
+  evidence_summary: string;
 }
 
 interface DisputeEvidence {
@@ -116,8 +125,11 @@ export default function DisputesPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       await fetchDisputes();
-      if (selectedDispute?.checkout_id === checkoutId) {
-        setSelectedDispute({ ...selectedDispute, status: newStatus as Dispute['status'] });
+      if (selectedDispute?.checkout.id === checkoutId) {
+        setSelectedDispute({
+          ...selectedDispute,
+          checkout: { ...selectedDispute.checkout, dispute_status: newStatus as Checkout['dispute_status'] }
+        });
       }
     } catch (error) {
       console.error('Failed to update dispute status:', error);
@@ -169,9 +181,12 @@ export default function DisputesPage() {
 
   const getEvidenceStrength = (dispute: Dispute) => {
     let score = 0;
-    if (dispute.has_cart_mandate) score += 1;
-    if (dispute.has_intent_mandate) score += 2;
-    if (dispute.has_payment_mandate) score += 2;
+    const hasCart = dispute.mandates.some(m => m.type === 'cart');
+    const hasIntent = dispute.mandates.some(m => m.type === 'intent');
+    const hasPayment = dispute.mandates.some(m => m.type === 'payment');
+    if (hasCart) score += 1;
+    if (hasIntent) score += 2;
+    if (hasPayment) score += 2;
     return score >= 4 ? 'Strong' : score >= 2 ? 'Moderate' : 'Weak';
   };
 
@@ -213,25 +228,25 @@ export default function DisputesPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Open Disputes</p>
           <p className="text-2xl font-bold text-orange-600">
-            {disputes.filter((d) => d.status === 'opened').length}
+            {disputes.filter((d) => d.checkout.dispute_status === 'opened').length}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Represented</p>
           <p className="text-2xl font-bold text-blue-600">
-            {disputes.filter((d) => d.status === 'represented').length}
+            {disputes.filter((d) => d.checkout.dispute_status === 'represented').length}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Won</p>
           <p className="text-2xl font-bold text-green-600">
-            {disputes.filter((d) => d.status === 'won').length}
+            {disputes.filter((d) => d.checkout.dispute_status === 'won').length}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-sm text-gray-500">Lost</p>
           <p className="text-2xl font-bold text-red-600">
-            {disputes.filter((d) => d.status === 'lost').length}
+            {disputes.filter((d) => d.checkout.dispute_status === 'lost').length}
           </p>
         </div>
       </div>
@@ -247,10 +262,10 @@ export default function DisputesPage() {
                 <PieChart>
                   <Pie
                     data={[
-                      { name: 'Open', value: disputes.filter((d) => d.status === 'opened').length, color: '#f97316' },
-                      { name: 'Represented', value: disputes.filter((d) => d.status === 'represented').length, color: '#3b82f6' },
-                      { name: 'Won', value: disputes.filter((d) => d.status === 'won').length, color: '#22c55e' },
-                      { name: 'Lost', value: disputes.filter((d) => d.status === 'lost').length, color: '#ef4444' },
+                      { name: 'Open', value: disputes.filter((d) => d.checkout.dispute_status === 'opened').length, color: '#f97316' },
+                      { name: 'Represented', value: disputes.filter((d) => d.checkout.dispute_status === 'represented').length, color: '#3b82f6' },
+                      { name: 'Won', value: disputes.filter((d) => d.checkout.dispute_status === 'won').length, color: '#22c55e' },
+                      { name: 'Lost', value: disputes.filter((d) => d.checkout.dispute_status === 'lost').length, color: '#ef4444' },
                     ].filter(d => d.value > 0)}
                     cx="50%"
                     cy="50%"
@@ -260,10 +275,10 @@ export default function DisputesPage() {
                     dataKey="value"
                   >
                     {[
-                      { name: 'Open', value: disputes.filter((d) => d.status === 'opened').length, color: '#f97316' },
-                      { name: 'Represented', value: disputes.filter((d) => d.status === 'represented').length, color: '#3b82f6' },
-                      { name: 'Won', value: disputes.filter((d) => d.status === 'won').length, color: '#22c55e' },
-                      { name: 'Lost', value: disputes.filter((d) => d.status === 'lost').length, color: '#ef4444' },
+                      { name: 'Open', value: disputes.filter((d) => d.checkout.dispute_status === 'opened').length, color: '#f97316' },
+                      { name: 'Represented', value: disputes.filter((d) => d.checkout.dispute_status === 'represented').length, color: '#3b82f6' },
+                      { name: 'Won', value: disputes.filter((d) => d.checkout.dispute_status === 'won').length, color: '#22c55e' },
+                      { name: 'Lost', value: disputes.filter((d) => d.checkout.dispute_status === 'lost').length, color: '#ef4444' },
                     ].filter(d => d.value > 0).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
@@ -296,7 +311,8 @@ export default function DisputesPage() {
                   data={(() => {
                     const agentTotals: Record<string, number> = {};
                     disputes.forEach((d) => {
-                      agentTotals[d.agent_name] = (agentTotals[d.agent_name] || 0) + d.amount;
+                      const agentName = d.checkout.agent_provider || 'Unknown';
+                      agentTotals[agentName] = (agentTotals[agentName] || 0) + d.checkout.total;
                     });
                     return Object.entries(agentTotals)
                       .map(([name, amount]) => ({ name, amount }))
@@ -365,30 +381,33 @@ export default function DisputesPage() {
           <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
             {disputes.map((dispute) => {
               const strength = getEvidenceStrength(dispute);
+              const hasCart = dispute.mandates.some(m => m.type === 'cart');
+              const hasIntent = dispute.mandates.some(m => m.type === 'intent');
+              const hasPayment = dispute.mandates.some(m => m.type === 'payment');
               return (
                 <div
-                  key={dispute.id}
+                  key={dispute.checkout.id}
                   onClick={() => {
                     setSelectedDispute(dispute);
-                    fetchEvidence(dispute.checkout_id);
+                    fetchEvidence(dispute.checkout.id);
                   }}
                   className={`p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
-                    selectedDispute?.id === dispute.id ? 'bg-blue-50' : ''
+                    selectedDispute?.checkout.id === dispute.checkout.id ? 'bg-blue-50' : ''
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-900">
-                          {formatCurrency(dispute.amount)}
+                          {formatCurrency(dispute.checkout.total)}
                         </span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(dispute.status)}`}>
-                          {dispute.status.toUpperCase()}
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(dispute.checkout.dispute_status)}`}>
+                          {dispute.checkout.dispute_status.toUpperCase()}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 mt-1">{dispute.agent_name}</p>
+                      <p className="text-sm text-gray-500 mt-1">{dispute.checkout.agent_provider}</p>
                       <p className="text-xs text-gray-400 mt-1">
-                        Opened {formatDate(dispute.opened_at)}
+                        Opened {formatDate(dispute.checkout.dispute_opened_at)}
                       </p>
                     </div>
                     <div className="text-right">
@@ -396,13 +415,13 @@ export default function DisputesPage() {
                         {strength} Evidence
                       </span>
                       <div className="flex gap-1 mt-2 justify-end">
-                        {dispute.has_cart_mandate && (
+                        {hasCart && (
                           <span className="w-2 h-2 bg-blue-500 rounded-full" title="Cart Mandate"></span>
                         )}
-                        {dispute.has_intent_mandate && (
+                        {hasIntent && (
                           <span className="w-2 h-2 bg-purple-500 rounded-full" title="Intent Mandate"></span>
                         )}
-                        {dispute.has_payment_mandate && (
+                        {hasPayment && (
                           <span className="w-2 h-2 bg-green-500 rounded-full" title="Payment Mandate"></span>
                         )}
                       </div>
@@ -427,9 +446,9 @@ export default function DisputesPage() {
                   <h3 className="font-semibold text-gray-900">Evidence Package</h3>
                   <div className="flex gap-2">
                     <select
-                      value={selectedDispute.status}
-                      onChange={(e) => updateDisputeStatus(selectedDispute.checkout_id, e.target.value)}
-                      className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                      value={selectedDispute.checkout.dispute_status}
+                      onChange={(e) => updateDisputeStatus(selectedDispute.checkout.id, e.target.value)}
+                      className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-700"
                     >
                       <option value="opened">Opened</option>
                       <option value="represented">Represented</option>
@@ -437,7 +456,7 @@ export default function DisputesPage() {
                       <option value="lost">Lost</option>
                     </select>
                     <button
-                      onClick={() => exportEvidence(selectedDispute.checkout_id)}
+                      onClick={() => exportEvidence(selectedDispute.checkout.id)}
                       className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
                     >
                       Export JSON
@@ -557,7 +576,7 @@ export default function DisputesPage() {
 
                   {/* View Full Checkout Link */}
                   <Link
-                    href={`/dashboard/checkouts/${selectedDispute.checkout_id}`}
+                    href={`/dashboard/checkouts/${selectedDispute.checkout.id}`}
                     className="block text-center py-2 text-blue-600 hover:text-blue-800 font-medium"
                   >
                     View Full Checkout Details →
