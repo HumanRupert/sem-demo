@@ -461,15 +461,15 @@ export default function DisputesPage() {
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <span className="text-gray-500">Amount:</span>
-                        <span className="ml-2 font-medium">{formatCurrency(evidence.checkout.total)}</span>
+                        <span className="ml-2 font-medium text-gray-900">{formatCurrency(evidence.checkout.total)}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">Date:</span>
-                        <span className="ml-2">{formatDate(evidence.checkout.created_at)}</span>
+                        <span className="ml-2 text-gray-900">{formatDate(evidence.checkout.created_at)}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">Modality:</span>
-                        <span className="ml-2">{evidence.checkout.modality.replace('_', ' ')}</span>
+                        <span className="ml-2 text-gray-900">{evidence.checkout.modality.replace('_', ' ')}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">Verification:</span>
@@ -576,13 +576,13 @@ export default function DisputesPage() {
               )}
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center text-gray-500 p-8">
+            <div className="h-full flex items-center justify-center p-8">
               <div className="text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-3xl">⚖️</span>
                 </div>
-                <p className="font-medium">Select a dispute</p>
-                <p className="text-sm mt-1">View and export cryptographic evidence</p>
+                <p className="font-medium text-gray-900">Select a dispute</p>
+                <p className="text-sm mt-1 text-gray-500">View and export cryptographic evidence</p>
               </div>
             </div>
           )}

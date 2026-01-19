@@ -164,17 +164,17 @@ export default function CheckoutDetailPage() {
             <div className="border-t border-gray-200 mt-4 pt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Subtotal</span>
-                <span>{formatPrice(checkout.subtotal)}</span>
+                <span className="text-gray-900">{formatPrice(checkout.subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Tax</span>
-                <span>{formatPrice(checkout.tax)}</span>
+                <span className="text-gray-900">{formatPrice(checkout.tax)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Shipping</span>
-                <span>{formatPrice(checkout.shipping)}</span>
+                <span className="text-gray-900">{formatPrice(checkout.shipping)}</span>
               </div>
-              <div className="flex justify-between text-lg font-bold pt-2 border-t">
+              <div className="flex justify-between text-lg font-bold pt-2 border-t text-gray-900">
                 <span>Total</span>
                 <span>{formatPrice(checkout.total)}</span>
               </div>
