@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   CopilotKit,
   useCopilotAction,
@@ -9,7 +10,8 @@ import {
 import { CopilotChat } from "@copilotkit/react-ui";
 import "@copilotkit/react-ui/styles.css";
 import { useCart } from "@/context/CartContext";
-import { ProductGrid, ProductCard, Product } from "./ProductCard";
+import { ProductCard, Product } from "./ProductCard";
+import { ProductCarousel } from "./ProductCarousel";
 import { AvailabilityOption, InlineSizeSelector } from "./SizeSelector";
 import { motion } from "framer-motion";
 
@@ -241,7 +243,7 @@ function CopilotActions() {
           />
         );
       }
-      return null;
+      return <></>;
     },
     handler: async () => {
       return "Size selector shown. Please select a size to add the item to cart.";
@@ -296,7 +298,7 @@ function GenerativeUI() {
       // Only show our custom UI when we have results
       // This prevents the duplicate spinner issue - let CopilotChat handle loading
       if (!result) {
-        return null; // Let CopilotChat show default loading
+        return <></>; // Let CopilotChat show default loading
       }
 
       // Parse the result to extract products
@@ -316,11 +318,7 @@ function GenerativeUI() {
           animate={{ opacity: 1, y: 0 }}
           className="my-4"
         >
-          <ProductGrid
-            products={products}
-            onAddToCart={handleAddToCart}
-            onAddToCartWithSize={handleAddToCartWithSize}
-          />
+          <ProductCarousel products={products} />
         </motion.div>
       );
     },
@@ -334,7 +332,7 @@ function GenerativeUI() {
 
       // Only show our custom UI when we have results
       if (!result) {
-        return null; // Let CopilotChat show default loading
+        return <></>; // Let CopilotChat show default loading
       }
 
       const product = parseProductDetails(result);
@@ -417,8 +415,11 @@ function parseSearchResults(result: unknown): Product[] {
       console.log(`[parseSearchResults] Found ${products.length} relevant products out of ${response.total_found || 'unknown'} total`);
     } else if (Array.isArray(response)) {
       products = response;
-    } else if (response?.data?.products && Array.isArray(response.data.products)) {
-      products = response.data.products;
+    } else if (response?.data && typeof response.data === 'object') {
+      const dataObj = response.data as Record<string, unknown>;
+      if (dataObj.products && Array.isArray(dataObj.products)) {
+        products = dataObj.products;
+      }
     } else if (response?.result && Array.isArray(response.result)) {
       products = response.result;
     } else if (response?.content) {
@@ -609,24 +610,24 @@ function parseSearchResults(result: unknown): Product[] {
       if (!availabilityMatrix || availabilityMatrix.length === 0) {
         const availableSizes = product.available_sizes || product.sizes || product.size_options;
         if (availableSizes && Array.isArray(availableSizes)) {
-          availabilityMatrix = (availableSizes as unknown[]).map((s: unknown, idx: number) => {
+          availabilityMatrix = (availableSizes as unknown[]).map((s: unknown, idx: number): AvailabilityOption | null => {
             if (typeof s === 'string') {
               return {
                 variantId: `size-${idx}`,
                 size: s,
-                color: undefined,
                 available: true,
-                price: undefined,
               };
             } else if (typeof s === 'object' && s !== null) {
               const sizeObj = s as Record<string, unknown>;
-              return {
+              const opt: AvailabilityOption = {
                 variantId: String(sizeObj.id || sizeObj.variant_id || `size-${idx}`),
-                size: sizeObj.size ? String(sizeObj.size) : sizeObj.value ? String(sizeObj.value) : undefined,
-                color: sizeObj.color ? String(sizeObj.color) : undefined,
                 available: Boolean(sizeObj.available ?? sizeObj.in_stock ?? true),
-                price: sizeObj.price ? String(sizeObj.price) : undefined,
               };
+              if (sizeObj.size) opt.size = String(sizeObj.size);
+              else if (sizeObj.value) opt.size = String(sizeObj.value);
+              if (sizeObj.color) opt.color = String(sizeObj.color);
+              if (sizeObj.price) opt.price = String(sizeObj.price);
+              return opt;
             }
             return null;
           }).filter((opt): opt is AvailabilityOption => opt !== null && (!!opt.size || !!opt.color));
@@ -691,9 +692,14 @@ function parseProductDetails(result: unknown): Product | null {
     // Handle various response formats
     if (response?.product) {
       product = response.product as Record<string, unknown>;
-    } else if (response?.data?.product) {
-      product = response.data.product as Record<string, unknown>;
-    } else if (response?.content) {
+    } else if (response?.data && typeof response.data === 'object') {
+      const dataObj = response.data as Record<string, unknown>;
+      if (dataObj.product) {
+        product = dataObj.product as Record<string, unknown>;
+      }
+    }
+
+    if (!product && response?.content) {
       const content = response.content as unknown[];
       if (Array.isArray(content) && content[0]) {
         const textContent = content[0] as Record<string, unknown>;
@@ -835,24 +841,24 @@ function parseProductDetails(result: unknown): Product | null {
     if (!availabilityMatrix || availabilityMatrix.length === 0) {
       const availableSizes = product.available_sizes || product.sizes || product.size_options;
       if (availableSizes && Array.isArray(availableSizes)) {
-        availabilityMatrix = (availableSizes as unknown[]).map((s: unknown, idx: number) => {
+        availabilityMatrix = (availableSizes as unknown[]).map((s: unknown, idx: number): AvailabilityOption | null => {
           if (typeof s === 'string') {
             return {
               variantId: `size-${idx}`,
               size: s,
-              color: undefined,
               available: true,
-              price: undefined,
             };
           } else if (typeof s === 'object' && s !== null) {
             const sizeObj = s as Record<string, unknown>;
-            return {
+            const opt: AvailabilityOption = {
               variantId: String(sizeObj.id || sizeObj.variant_id || `size-${idx}`),
-              size: sizeObj.size ? String(sizeObj.size) : sizeObj.value ? String(sizeObj.value) : undefined,
-              color: sizeObj.color ? String(sizeObj.color) : undefined,
               available: Boolean(sizeObj.available ?? sizeObj.in_stock ?? true),
-              price: sizeObj.price ? String(sizeObj.price) : undefined,
             };
+            if (sizeObj.size) opt.size = String(sizeObj.size);
+            else if (sizeObj.value) opt.size = String(sizeObj.value);
+            if (sizeObj.color) opt.color = String(sizeObj.color);
+            if (sizeObj.price) opt.price = String(sizeObj.price);
+            return opt;
           }
           return null;
         }).filter((opt): opt is AvailabilityOption => opt !== null && (!!opt.size || !!opt.color));
@@ -912,8 +918,71 @@ export function ShoppingCopilot({ children }: ShoppingCopilotProps) {
 }
 
 export function ChatInterface() {
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    // Find the messages container within CopilotChat
+    const findMessagesContainer = (): HTMLElement | null => {
+      // CopilotChat renders messages in a scrollable container
+      // We look for common patterns in the DOM structure
+      const possibleContainers = container.querySelectorAll('[class*="messages"], [class*="Messages"], [class*="chat"], [class*="Chat"]');
+      for (const el of possibleContainers) {
+        if (el.scrollHeight > el.clientHeight || el.children.length > 0) {
+          return el as HTMLElement;
+        }
+      }
+      // Fallback: find any scrollable element
+      const allDivs = container.querySelectorAll('div');
+      for (const div of allDivs) {
+        const style = window.getComputedStyle(div);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          return div as HTMLElement;
+        }
+      }
+      return null;
+    };
+
+    const scrollToBottom = (element: HTMLElement) => {
+      element.scrollTo({
+        top: element.scrollHeight,
+        behavior: 'smooth'
+      });
+    };
+
+    // Set up MutationObserver to watch for new messages
+    const observer = new MutationObserver((mutations) => {
+      const messagesContainer = findMessagesContainer();
+      if (messagesContainer) {
+        // Small delay to ensure content is rendered
+        requestAnimationFrame(() => {
+          scrollToBottom(messagesContainer);
+        });
+      }
+    });
+
+    // Start observing
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    // Initial scroll to bottom
+    setTimeout(() => {
+      const messagesContainer = findMessagesContainer();
+      if (messagesContainer) {
+        scrollToBottom(messagesContainer);
+      }
+    }, 500);
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="h-full flex flex-col">
+    <div ref={chatContainerRef} className="h-full flex flex-col chat-auto-scroll">
       <GenerativeUI />
       <CopilotChat
         className="flex-1"

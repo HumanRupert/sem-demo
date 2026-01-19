@@ -81,3 +81,19 @@ html {
 html {
   overflow-y: scroll;
 }
+
+/* Hide scrollbar for carousel */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Chat auto-scroll container */
+.chat-auto-scroll [class*="copilotKit"] [class*="messages"],
+.chat-auto-scroll [class*="copilotKit"] [class*="Messages"] {
+  scroll-behavior: smooth;
+}
