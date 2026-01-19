@@ -452,28 +452,28 @@ Payload Hash: {mandate.payload_hash}
 @router.get("/analytics/overview", response_model=OverviewMetrics)
 def get_analytics_overview(db: Session = Depends(get_db)):
     """Get dashboard overview metrics."""
-    # Total counts
-    total_checkouts = db.query(Checkout).count()
+    # Total counts (default to 0 if None)
+    total_checkouts = db.query(Checkout).count() or 0
     total_revenue = db.query(func.sum(Checkout.total)).filter(Checkout.status == "completed").scalar() or 0
 
     # Status counts
-    completed = db.query(Checkout).filter(Checkout.status == "completed").count()
-    declined = db.query(Checkout).filter(Checkout.status == "declined").count()
-    challenged = db.query(Checkout).filter(Checkout.status == "challenged").count()
-    abandoned = db.query(Checkout).filter(Checkout.status == "abandoned").count()
-    disputed = db.query(Checkout).filter(Checkout.status == "disputed").count()
+    completed = db.query(Checkout).filter(Checkout.status == "completed").count() or 0
+    declined = db.query(Checkout).filter(Checkout.status == "declined").count() or 0
+    challenged = db.query(Checkout).filter(Checkout.status == "challenged").count() or 0
+    abandoned = db.query(Checkout).filter(Checkout.status == "abandoned").count() or 0
+    disputed = db.query(Checkout).filter(Checkout.status == "disputed").count() or 0
 
     # Agent counts
-    total_agents = db.query(Agent).count()
-    trusted_agents = db.query(Agent).filter(Agent.trust_level == "trusted").count()
-    blocked_agents = db.query(Agent).filter(Agent.trust_level == "blocked").count()
+    total_agents = db.query(Agent).count() or 0
+    trusted_agents = db.query(Agent).filter(Agent.trust_level == "trusted").count() or 0
+    blocked_agents = db.query(Agent).filter(Agent.trust_level == "blocked").count() or 0
 
     # Modality counts
-    human_present = db.query(Checkout).filter(Checkout.modality == "human_present").count()
-    human_not_present = db.query(Checkout).filter(Checkout.modality == "human_not_present").count()
+    human_present = db.query(Checkout).filter(Checkout.modality == "human_present").count() or 0
+    human_not_present = db.query(Checkout).filter(Checkout.modality == "human_not_present").count() or 0
 
     # Known customer rate
-    known_customers = db.query(Checkout).filter(Checkout.is_known_customer == True).count()
+    known_customers = db.query(Checkout).filter(Checkout.is_known_customer == True).count() or 0
     known_rate = (known_customers / total_checkouts * 100) if total_checkouts > 0 else 0
 
     # Calculate trends (compare to previous 15 days)
@@ -490,8 +490,8 @@ def get_analytics_overview(db: Session = Depends(get_db)):
 
     revenue_trend = ((recent_revenue - older_revenue) / older_revenue * 100) if older_revenue > 0 else 0
 
-    recent_checkouts = db.query(Checkout).filter(Checkout.created_at >= mid_point).count()
-    older_checkouts = db.query(Checkout).filter(Checkout.created_at < mid_point).count()
+    recent_checkouts = db.query(Checkout).filter(Checkout.created_at >= mid_point).count() or 0
+    older_checkouts = db.query(Checkout).filter(Checkout.created_at < mid_point).count() or 0
     checkout_trend = ((recent_checkouts - older_checkouts) / older_checkouts * 100) if older_checkouts > 0 else 0
 
     # Calculate average order value
@@ -524,11 +524,11 @@ def get_analytics_overview(db: Session = Depends(get_db)):
 @router.get("/analytics/funnel", response_model=FunnelMetrics)
 def get_analytics_funnel(db: Session = Depends(get_db)):
     """Get conversion funnel metrics."""
-    total = db.query(Checkout).count()
-    mandates_signed = db.query(Checkout).filter(Checkout.cart_mandate_id != None).count()
-    payment_attempted = db.query(Checkout).filter(Checkout.payment_status != "pending").count()
-    payment_authorized = db.query(Checkout).filter(Checkout.payment_status.in_(["authorized", "captured"])).count()
-    completed = db.query(Checkout).filter(Checkout.status == "completed").count()
+    total = db.query(Checkout).count() or 0
+    mandates_signed = db.query(Checkout).filter(Checkout.cart_mandate_id != None).count() or 0
+    payment_attempted = db.query(Checkout).filter(Checkout.payment_status != "pending").count() or 0
+    payment_authorized = db.query(Checkout).filter(Checkout.payment_status.in_(["authorized", "captured"])).count() or 0
+    completed = db.query(Checkout).filter(Checkout.status == "completed").count() or 0
 
     return FunnelMetrics(
         cart_created=total,
