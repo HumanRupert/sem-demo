@@ -330,15 +330,29 @@ function parseSearchResults(result: unknown): Product[] {
     console.log("[parseSearchResults] Found products array:", products.length, products);
 
     // Map products to our Product interface
-    // Storefront MCP response fields: name/title, price, currency, variantId, productUrl, imageUrl, description
+    // Shopify Storefront MCP response fields:
+    // - product_id, title, description, url, image_url
+    // - price_range: { min, max, currency }
+    // - product_type, availabilityMatrix, options, tags
     return products.map((p: unknown) => {
       const product = p as Record<string, unknown>;
 
-      // Extract price - Storefront MCP provides price directly
+      // Extract price - Shopify MCP uses price_range object
       let price: string | undefined;
-      if (product.price !== undefined) {
+      if (product.price_range) {
+        const priceRange = product.price_range as Record<string, unknown>;
+        const minPrice = priceRange.min ? String(priceRange.min) : undefined;
+        const maxPrice = priceRange.max ? String(priceRange.max) : undefined;
+        if (minPrice && maxPrice && minPrice !== maxPrice) {
+          // Show price range if different
+          price = `${minPrice}-${maxPrice}`;
+        } else {
+          price = minPrice;
+        }
+      } else if (product.price !== undefined) {
         price = String(product.price);
       } else if (product.priceRange) {
+        // Fallback for different format
         const priceRange = product.priceRange as Record<string, unknown>;
         const minPrice = priceRange.minVariantPrice as Record<string, unknown> | undefined;
         if (minPrice?.amount) {
@@ -346,12 +360,21 @@ function parseSearchResults(result: unknown): Product[] {
         }
       }
 
-      // Extract image URL - Storefront MCP provides imageUrl directly
+      // Extract currency
+      let currency: string | undefined;
+      if (product.price_range) {
+        const priceRange = product.price_range as Record<string, unknown>;
+        currency = priceRange.currency ? String(priceRange.currency) : undefined;
+      } else if (product.currency) {
+        currency = String(product.currency);
+      }
+
+      // Extract image URL - Shopify MCP uses image_url
       let imageUrl: string | undefined;
-      if (product.imageUrl) {
-        imageUrl = String(product.imageUrl);
-      } else if (product.image_url) {
+      if (product.image_url) {
         imageUrl = String(product.image_url);
+      } else if (product.imageUrl) {
+        imageUrl = String(product.imageUrl);
       } else if (product.image) {
         imageUrl = extractImageUrl(product.image);
       } else if (product.featuredImage) {
@@ -360,17 +383,17 @@ function parseSearchResults(result: unknown): Product[] {
         imageUrl = extractImageUrl(product.images[0]);
       }
 
-      // Extract product URL - Storefront MCP provides productUrl directly
+      // Extract product URL - Shopify MCP uses url
       let productUrl: string | undefined;
-      if (product.productUrl) {
+      if (product.url) {
+        productUrl = String(product.url);
+      } else if (product.productUrl) {
         productUrl = String(product.productUrl);
       } else if (product.product_url) {
         productUrl = String(product.product_url);
-      } else if (product.url) {
-        productUrl = String(product.url);
       }
 
-      // Extract variant ID - Storefront MCP provides variantId for cart operations
+      // Extract variant ID
       let variantId: string | undefined;
       if (product.variantId) {
         variantId = String(product.variantId);
@@ -379,7 +402,7 @@ function parseSearchResults(result: unknown): Product[] {
       }
 
       const mapped: Product = {
-        id: String(product.id || product.product_id || product.variantId || ""),
+        id: String(product.product_id || product.id || product.variantId || ""),
         title: String(product.title || product.name || ""),
         description: product.description ? String(product.description) : undefined,
         handle: product.handle ? String(product.handle) : undefined,
