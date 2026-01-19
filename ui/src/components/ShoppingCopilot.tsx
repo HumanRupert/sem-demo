@@ -447,11 +447,14 @@ function parseSearchResults(result: unknown): Product[] {
     }
 
     console.log("[parseSearchResults] Found products array:", products.length);
-    // Log first product's availabilityMatrix for debugging
+    // Log first product structure for debugging
     if (products.length > 0) {
       const firstProduct = products[0] as Record<string, unknown>;
       console.log("[parseSearchResults] First product keys:", Object.keys(firstProduct));
-      console.log("[parseSearchResults] First product availabilityMatrix:", firstProduct.availabilityMatrix);
+      console.log("[parseSearchResults] First product FULL:", JSON.stringify(firstProduct, null, 2));
+      console.log("[parseSearchResults] availabilityMatrix:", firstProduct.availabilityMatrix);
+      console.log("[parseSearchResults] variants:", firstProduct.variants);
+      console.log("[parseSearchResults] options:", firstProduct.options);
     }
 
     // Map products to our Product interface
