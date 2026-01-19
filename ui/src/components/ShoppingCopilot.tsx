@@ -527,8 +527,9 @@ function parseSearchResults(result: unknown): Product[] {
       }
 
       // Extract availability matrix for size selection
-      // Shopify MCP returns: availabilityMatrix: [{ variantId, size, color, available, price }]
       let availabilityMatrix: AvailabilityOption[] | undefined;
+
+      // First check for direct availabilityMatrix from MCP
       if (product.availabilityMatrix && Array.isArray(product.availabilityMatrix)) {
         availabilityMatrix = (product.availabilityMatrix as unknown[]).map((item: unknown) => {
           const opt = item as Record<string, unknown>;
@@ -540,6 +541,42 @@ function parseSearchResults(result: unknown): Product[] {
             price: opt.price ? String(opt.price) : undefined,
           };
         });
+      }
+
+      // If no availabilityMatrix but has variants, convert variants to availabilityMatrix
+      if (!availabilityMatrix && product.variants && Array.isArray(product.variants)) {
+        availabilityMatrix = (product.variants as unknown[]).map((v: unknown) => {
+          const variant = v as Record<string, unknown>;
+
+          // Parse size/color from variant title (e.g., "10 / Natural Black", "M", "Large / Blue")
+          const title = String(variant.title || "");
+          let size: string | undefined;
+          let color: string | undefined;
+
+          if (title.includes("/") || title.includes(" - ")) {
+            // Format: "Size / Color" or "Size - Color"
+            const parts = title.split(/\s*[\/\-]\s*/);
+            size = parts[0]?.trim();
+            color = parts[1]?.trim();
+          } else if (title.trim()) {
+            // Single value - treat as size (most common for footwear)
+            size = title.trim();
+          }
+
+          // Extract price
+          let variantPrice: string | undefined;
+          if (variant.price !== undefined) {
+            variantPrice = String(variant.price);
+          }
+
+          return {
+            variantId: String(variant.id || variant.variantId || variant.variant_id || ""),
+            size,
+            color,
+            available: Boolean(variant.available ?? variant.availableForSale ?? true),
+            price: variantPrice,
+          };
+        }).filter(opt => opt.variantId); // Filter out invalid entries
       }
 
       const mapped: Product = {
@@ -667,6 +704,8 @@ function parseProductDetails(result: unknown): Product | null {
 
     // Extract availability matrix for size selection
     let availabilityMatrix: AvailabilityOption[] | undefined;
+
+    // First check for direct availabilityMatrix from MCP
     if (product.availabilityMatrix && Array.isArray(product.availabilityMatrix)) {
       availabilityMatrix = (product.availabilityMatrix as unknown[]).map((item: unknown) => {
         const opt = item as Record<string, unknown>;
@@ -678,6 +717,42 @@ function parseProductDetails(result: unknown): Product | null {
           price: opt.price ? String(opt.price) : undefined,
         };
       });
+    }
+
+    // If no availabilityMatrix but has variants, convert variants to availabilityMatrix
+    if (!availabilityMatrix && product.variants && Array.isArray(product.variants)) {
+      availabilityMatrix = (product.variants as unknown[]).map((v: unknown) => {
+        const variant = v as Record<string, unknown>;
+
+        // Parse size/color from variant title (e.g., "10 / Natural Black", "M", "Large / Blue")
+        const title = String(variant.title || "");
+        let size: string | undefined;
+        let color: string | undefined;
+
+        if (title.includes("/") || title.includes(" - ")) {
+          // Format: "Size / Color" or "Size - Color"
+          const parts = title.split(/\s*[\/\-]\s*/);
+          size = parts[0]?.trim();
+          color = parts[1]?.trim();
+        } else if (title.trim()) {
+          // Single value - treat as size (most common for footwear)
+          size = title.trim();
+        }
+
+        // Extract price
+        let variantPrice: string | undefined;
+        if (variant.price !== undefined) {
+          variantPrice = String(variant.price);
+        }
+
+        return {
+          variantId: String(variant.id || variant.variantId || variant.variant_id || ""),
+          size,
+          color,
+          available: Boolean(variant.available ?? variant.availableForSale ?? true),
+          price: variantPrice,
+        };
+      }).filter(opt => opt.variantId); // Filter out invalid entries
     }
 
     const mapped: Product = {
