@@ -1,0 +1,258 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { AgentTrustBadge } from '@/components/dashboard/AgentTrustBadge';
+
+interface Agent {
+  id: string;
+  name: string;
+  provider: string;
+  trust_level: 'trusted' | 'probation' | 'blocked';
+  first_seen_at: string;
+  last_seen_at: string;
+  total_transactions: number;
+  successful_transactions: number;
+  declined_transactions: number;
+  disputed_transactions: number;
+  jwks_uri?: string;
+}
+
+export default function AgentsPage() {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>('all');
+  const [updatingAgent, setUpdatingAgent] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAgents();
+  }, [filter]);
+
+  const fetchAgents = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filter !== 'all') params.set('trust_level', filter);
+
+      const res = await fetch(`http://localhost:8000/merchant/agents?${params}`);
+      const data = await res.json();
+      setAgents(data.items || []);
+    } catch (error) {
+      console.error('Failed to fetch agents:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateTrustLevel = async (agentId: string, newLevel: string) => {
+    setUpdatingAgent(agentId);
+    try {
+      await fetch(`http://localhost:8000/merchant/agents/${agentId}/trust`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trust_level: newLevel }),
+      });
+      await fetchAgents();
+    } catch (error) {
+      console.error('Failed to update trust level:', error);
+    } finally {
+      setUpdatingAgent(null);
+    }
+  };
+
+  const getSuccessRate = (agent: Agent) => {
+    if (agent.total_transactions === 0) return 0;
+    return Math.round((agent.successful_transactions / agent.total_transactions) * 100);
+  };
+
+  const getDisputeRate = (agent: Agent) => {
+    if (agent.total_transactions === 0) return 0;
+    return ((agent.disputed_transactions / agent.total_transactions) * 100).toFixed(1);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const getProviderIcon = (provider: string) => {
+    const icons: Record<string, string> = {
+      'OpenAI': '🤖',
+      'Google': '🔍',
+      'Perplexity': '🔮',
+      'Amazon': '📦',
+      'Klarna': '💳',
+      'Apple': '🍎',
+      'Independent': '🔧',
+    };
+    return icons[provider] || '🤖';
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-pulse space-y-4">
+        <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+        <div className="h-64 bg-gray-200 rounded"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Agent Registry</h1>
+          <p className="text-gray-500 mt-1">Know Your Agent (KYA) - Monitor and manage agent trust levels</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded font-medium">TAP Protocol</span>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-2">
+        {['all', 'trusted', 'probation', 'blocked'].map((level) => (
+          <button
+            key={level}
+            onClick={() => setFilter(level)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              filter === level
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {level === 'all' ? 'All Agents' : level.charAt(0).toUpperCase() + level.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Agent Cards */}
+      <div className="grid gap-4">
+        {agents.map((agent) => (
+          <div
+            key={agent.id}
+            className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-start justify-between">
+              {/* Agent Info */}
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl">
+                  {getProviderIcon(agent.provider)}
+                </div>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-semibold text-gray-900">{agent.name}</h3>
+                    <AgentTrustBadge level={agent.trust_level} />
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Provider: {agent.provider} • First seen: {formatDate(agent.first_seen_at)}
+                  </p>
+                  {agent.jwks_uri && (
+                    <p className="text-xs text-gray-400 mt-1 font-mono truncate max-w-md">
+                      JWKS: {agent.jwks_uri}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Trust Level Control */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={agent.trust_level}
+                  onChange={(e) => updateTrustLevel(agent.id, e.target.value)}
+                  disabled={updatingAgent === agent.id}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+                >
+                  <option value="trusted">Trusted</option>
+                  <option value="probation">Probation</option>
+                  <option value="blocked">Blocked</option>
+                </select>
+                {updatingAgent === agent.id && (
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                )}
+              </div>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-5 gap-4 mt-6 pt-6 border-t border-gray-100">
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{agent.total_transactions}</p>
+                <p className="text-xs text-gray-500">Total Transactions</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-green-600">{agent.successful_transactions}</p>
+                <p className="text-xs text-gray-500">Successful</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-red-600">{agent.declined_transactions}</p>
+                <p className="text-xs text-gray-500">Declined</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-orange-600">{agent.disputed_transactions}</p>
+                <p className="text-xs text-gray-500">Disputed</p>
+              </div>
+              <div>
+                <div className="flex items-baseline gap-1">
+                  <p className="text-2xl font-bold text-gray-900">{getSuccessRate(agent)}%</p>
+                  <span className="text-xs text-gray-500">success</span>
+                </div>
+                <p className="text-xs text-gray-500">{getDisputeRate(agent)}% dispute rate</p>
+              </div>
+            </div>
+
+            {/* Performance Bar */}
+            <div className="mt-4">
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
+                <div
+                  className="bg-green-500 h-full"
+                  style={{ width: `${(agent.successful_transactions / Math.max(agent.total_transactions, 1)) * 100}%` }}
+                />
+                <div
+                  className="bg-red-500 h-full"
+                  style={{ width: `${(agent.declined_transactions / Math.max(agent.total_transactions, 1)) * 100}%` }}
+                />
+                <div
+                  className="bg-orange-500 h-full"
+                  style={{ width: `${(agent.disputed_transactions / Math.max(agent.total_transactions, 1)) * 100}%` }}
+                />
+              </div>
+              <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span> Success
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span> Declined
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-orange-500 rounded-full"></span> Disputed
+                </span>
+              </div>
+            </div>
+
+            {/* Last Activity */}
+            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-sm">
+              <span className="text-gray-500">
+                Last active: {formatDate(agent.last_seen_at)}
+              </span>
+              <Link
+                href={`/dashboard/checkouts?agent_id=${agent.id}`}
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                View Transactions →
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {agents.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          No agents found matching your filter.
+        </div>
+      )}
+    </div>
+  );
+}

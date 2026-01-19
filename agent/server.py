@@ -3,6 +3,8 @@ FastAPI server exposing the ADK agent via AG-UI protocol.
 
 This server uses the ag-ui-adk middleware to make the ADK agent
 accessible to CopilotKit frontends.
+
+Also includes Merchant Control Dashboard API for agentic commerce visibility.
 """
 
 import logging
@@ -18,6 +20,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint
 
 from shopping_agent.agent import root_agent
+
+# Import merchant dashboard components
+from merchant.database import init_db
+from merchant.routes import router as merchant_router
+from merchant.seed import seed_database
 
 # =============================================================================
 # LOGGING CONFIGURATION
@@ -82,7 +89,24 @@ adk_agent = ADKAgent(
 # Add AG-UI endpoint for the ADK agent
 add_adk_fastapi_endpoint(app, adk_agent, path="/")
 
+# =============================================================================
+# MERCHANT DASHBOARD
+# =============================================================================
+
+# Include merchant dashboard routes
+app.include_router(merchant_router)
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and seed with demo data on startup."""
+    logger.info("[STARTUP] Initializing merchant database...")
+    init_db()
+    logger.info("[STARTUP] Seeding database with demo data...")
+    seed_database()
+    logger.info("[STARTUP] Merchant dashboard ready")
+
 logger.info("[SERVER] Shopping Assistant API initialized")
+logger.info("[SERVER] Merchant Dashboard API available at /merchant/*")
 
 
 @app.get("/health")
