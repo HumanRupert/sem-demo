@@ -438,25 +438,33 @@ def seed_database():
     print(f"  Created {checkout_count} checkouts")
 
     # ==========================================================================
-    # CREATE EXACTLY 1 DISPUTED CHECKOUT (per requirements)
+    # CREATE DISPUTED CHECKOUTS (5 disputes with various statuses)
     # ==========================================================================
-    print("Creating disputed checkout...")
-    # Find a completed checkout to mark as disputed
+    print("Creating disputed checkouts...")
+    # Find completed checkouts to mark as disputed
     completed_checkouts = [c for c in all_checkouts if c.status == "completed"]
-    if completed_checkouts:
-        disputed = completed_checkouts[0]
-        disputed.status = "disputed"
-        disputed.dispute_status = "opened"
-        disputed.dispute_opened_at = disputed.created_at + timedelta(days=random.randint(1, 5))
 
-        # Update agent stats
-        agent = agent_objects.get(disputed.agent_id)
-        if agent:
-            agent["agent"].successful_transactions -= 1
-            agent["agent"].disputed_transactions += 1
+    # Create 5 disputes with different statuses for demo
+    dispute_statuses = ["opened", "opened", "represented", "won", "lost"]
+    disputes_created = 0
 
-        session.commit()
-        print("  Created 1 disputed checkout")
+    for i, status in enumerate(dispute_statuses):
+        if i < len(completed_checkouts):
+            disputed = completed_checkouts[i]
+            disputed.status = "disputed"
+            disputed.dispute_status = status
+            disputed.dispute_opened_at = disputed.created_at + timedelta(days=random.randint(1, 5))
+
+            # Update agent stats
+            agent = agent_objects.get(disputed.agent_id)
+            if agent:
+                agent["agent"].successful_transactions -= 1
+                agent["agent"].disputed_transactions += 1
+
+            disputes_created += 1
+
+    session.commit()
+    print(f"  Created {disputes_created} disputed checkouts")
 
     # ==========================================================================
     # 4. CREATE MANDATES

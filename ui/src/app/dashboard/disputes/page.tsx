@@ -4,6 +4,19 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/dashboard/StatusBadge';
 import { AgentTrustBadge } from '@/components/dashboard/AgentTrustBadge';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
 
 interface Dispute {
   id: string;
@@ -74,7 +87,7 @@ export default function DisputesPage() {
 
       const res = await fetch(`http://localhost:8000/merchant/disputes?${params}`);
       const data = await res.json();
-      setDisputes(data.items || []);
+      setDisputes(Array.isArray(data) ? data : data.items || []);
     } catch (error) {
       console.error('Failed to fetch disputes:', error);
     } finally {
@@ -222,6 +235,109 @@ export default function DisputesPage() {
           </p>
         </div>
       </div>
+
+      {/* Charts Row */}
+      {disputes.length > 0 && (
+        <div className="grid grid-cols-2 gap-6">
+          {/* Status Distribution Pie Chart */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h2>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Open', value: disputes.filter((d) => d.status === 'opened').length, color: '#f97316' },
+                      { name: 'Represented', value: disputes.filter((d) => d.status === 'represented').length, color: '#3b82f6' },
+                      { name: 'Won', value: disputes.filter((d) => d.status === 'won').length, color: '#22c55e' },
+                      { name: 'Lost', value: disputes.filter((d) => d.status === 'lost').length, color: '#ef4444' },
+                    ].filter(d => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {[
+                      { name: 'Open', value: disputes.filter((d) => d.status === 'opened').length, color: '#f97316' },
+                      { name: 'Represented', value: disputes.filter((d) => d.status === 'represented').length, color: '#3b82f6' },
+                      { name: 'Won', value: disputes.filter((d) => d.status === 'won').length, color: '#22c55e' },
+                      { name: 'Lost', value: disputes.filter((d) => d.status === 'lost').length, color: '#ef4444' },
+                    ].filter(d => d.value > 0).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    }}
+                    formatter={(value: number, name: string) => [value, name]}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    formatter={(value) => <span className="text-sm text-gray-600">{value}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Dispute Amount by Agent Bar Chart */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Dispute Amount by Agent</h2>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={(() => {
+                    const agentTotals: Record<string, number> = {};
+                    disputes.forEach((d) => {
+                      agentTotals[d.agent_name] = (agentTotals[d.agent_name] || 0) + d.amount;
+                    });
+                    return Object.entries(agentTotals)
+                      .map(([name, amount]) => ({ name, amount }))
+                      .sort((a, b) => b.amount - a.amount)
+                      .slice(0, 5);
+                  })()}
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={true} vertical={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                    tickFormatter={(value) => `$${value}`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={75}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    }}
+                    formatter={(value: number) => [formatCurrency(value), 'Disputed Amount']}
+                  />
+                  <Bar dataKey="amount" fill="#f97316" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-6">
         {/* Disputes List */}

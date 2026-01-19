@@ -3,6 +3,19 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AgentTrustBadge } from '@/components/dashboard/AgentTrustBadge';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
 
 interface Agent {
   id: string;
@@ -153,6 +166,108 @@ export default function AgentsPage() {
           </button>
         </div>
       </div>
+
+      {/* Analytics Charts */}
+      {agents.length > 0 && (
+        <div className="grid grid-cols-2 gap-6">
+          {/* Trust Level Distribution */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Trust Level Distribution</h2>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Trusted', value: agents.filter((a) => a.trust_level === 'trusted').length, color: '#22c55e' },
+                      { name: 'Probation', value: agents.filter((a) => a.trust_level === 'probation').length, color: '#f59e0b' },
+                      { name: 'Blocked', value: agents.filter((a) => a.trust_level === 'blocked').length, color: '#ef4444' },
+                    ].filter(d => d.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {[
+                      { name: 'Trusted', value: agents.filter((a) => a.trust_level === 'trusted').length, color: '#22c55e' },
+                      { name: 'Probation', value: agents.filter((a) => a.trust_level === 'probation').length, color: '#f59e0b' },
+                      { name: 'Blocked', value: agents.filter((a) => a.trust_level === 'blocked').length, color: '#ef4444' },
+                    ].filter(d => d.value > 0).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    }}
+                    formatter={(value: number, name: string) => [`${value} agents`, name]}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    formatter={(value) => <span className="text-sm text-gray-600">{value}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Agent Performance Comparison */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Agent Transaction Volume</h2>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={agents
+                    .sort((a, b) => b.total_transactions - a.total_transactions)
+                    .slice(0, 5)
+                    .map((agent) => ({
+                      name: agent.name.length > 12 ? agent.name.slice(0, 12) + '...' : agent.name,
+                      successful: agent.successful_transactions,
+                      declined: agent.declined_transactions,
+                      disputed: agent.disputed_transactions,
+                    }))}
+                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                    interval={0}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="top"
+                    height={36}
+                    formatter={(value) => <span className="text-xs text-gray-600 capitalize">{value}</span>}
+                  />
+                  <Bar dataKey="successful" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="declined" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="disputed" stackId="a" fill="#f97316" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex gap-2">
