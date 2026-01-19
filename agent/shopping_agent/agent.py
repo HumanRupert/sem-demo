@@ -9,17 +9,16 @@ are shown to the user.
 """
 
 import json
+import os
 import httpx
-import google.generativeai as genai
+from google import genai
 from google.adk.agents import LlmAgent
-from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 
 # Shopify Storefront MCP configuration for Allbirds store
 SHOPIFY_MCP_URL = "https://www.allbirds.com/api/mcp"
 
-# Configure Gemini for filtering (uses same API key as ADK)
-import os
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Configure Gemini client for filtering (uses same API key as ADK)
+genai_client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
 
 async def search_products(query: str, context: str = "") -> dict:
@@ -138,8 +137,10 @@ If no products are relevant, return an empty array: []
 JSON array of relevant indices:"""
 
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(filter_prompt)
+        response = genai_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=filter_prompt
+        )
 
         # Parse the response to get indices
         response_text = response.text.strip()
