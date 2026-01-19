@@ -101,18 +101,22 @@ async def search_products(query: str, context: str = "") -> dict:
     }
 
 
-async def browse_full_catalog() -> dict:
+async def browse_full_catalog(criteria: str) -> dict:
     """
-    Browse the full Allbirds product catalog for semantic matching.
+    Browse the Allbirds catalog and return products matching the given criteria.
 
-    This tool fetches all available products without keyword filtering,
-    allowing the agent to semantically match products to user requirements
-    (e.g., for gift suggestions or vague queries).
+    This tool fetches all products then filters them semantically to match
+    what the user is looking for. Use specific criteria for best results.
+
+    Args:
+        criteria: Description of what the user is looking for.
+                  Examples: "beach bag or tote for women", "men's running shoes",
+                  "warm slippers for winter", "comfortable everyday shoes for dad"
 
     Returns:
-        A dictionary containing all products in the catalog
+        A dictionary containing filtered products that match the criteria
     """
-    logger.info("[TOOL] browse_full_catalog called - fetching full catalog")
+    logger.info(f"[TOOL] browse_full_catalog called - criteria: '{criteria}'")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         mcp_request = {
@@ -123,7 +127,7 @@ async def browse_full_catalog() -> dict:
                 "name": "search_shop_catalog",
                 "arguments": {
                     "query": "",  # Empty query to get all products
-                    "context": "Browse full product catalog for recommendations"
+                    "context": f"Looking for: {criteria}"
                 }
             }
         }
@@ -146,10 +150,15 @@ async def browse_full_catalog() -> dict:
         logger.warning("[MCP RESULT] No products in catalog")
         return {"products": [], "message": "Unable to load product catalog."}
 
+    # Filter products semantically based on criteria
+    filtered_products = await filter_products_with_llm(criteria, "", products)
+    logger.info(f"[FILTER RESULT] Kept {len(filtered_products)} of {len(products)} products for criteria: '{criteria}'")
+
     return {
-        "products": products,
-        "total_products": len(products),
-        "message": "Full catalog loaded. Use your judgment to recommend the best products."
+        "products": filtered_products,
+        "total_catalog": len(products),
+        "total_relevant": len(filtered_products),
+        "criteria": criteria
     }
 
 
@@ -198,24 +207,32 @@ async def filter_products_with_llm(query: str, context: str, products: list) -> 
             "productType": p.get("productType", ""),
         })
 
-    filter_prompt = f"""You are a product relevance filter. The user searched for: "{query}"
+    filter_prompt = f"""You are a strict product relevance filter.
+
+The user is looking for: "{query}"
 {f'Additional context: {context}' if context else ''}
 
-Here are the search results:
+Available products:
 {json.dumps(simplified_products, indent=2)}
 
-Your task: Return ONLY the indices of products that are DIRECTLY relevant to what the user is searching for.
+Return ONLY indices of products that DIRECTLY match what the user wants.
 
-Rules:
-- If user searches for "shoes", only include actual footwear (shoes, sneakers, runners), NOT shoe bags, shoe care, laces, etc.
-- If user searches for "socks", only include socks, NOT shoes or other items
-- If user searches for "jacket", only include jackets/outerwear, NOT accessories
-- Be strict about relevance - only include items the user would actually want to buy based on their query
+Strict rules:
+- "beach bag" or "tote" → ONLY bags/totes/accessories that hold items, NOT shoes
+- "running shoes" → ONLY running footwear, NOT casual shoes or accessories
+- "slippers" → ONLY slippers/house shoes, NOT outdoor shoes
+- "socks" → ONLY socks, NOT shoes or other items
+- "jacket" → ONLY jackets/outerwear
+- "shoes" → ONLY footwear, NOT shoe bags, laces, or care products
+- "women's" → ONLY women's products
+- "men's" → ONLY men's products
+- Gift criteria → Match the category AND gender if specified
 
-Return a JSON array of indices only, e.g., [0, 2, 4]
-If no products are relevant, return an empty array: []
+Be VERY strict. If nothing matches, return empty array.
 
-JSON array of relevant indices:"""
+Return JSON array of indices: [0, 2, 4] or []
+
+Indices:"""
 
     logger.debug(f"[LLM FILTER PROMPT] {filter_prompt[:500]}...")
 
@@ -253,41 +270,20 @@ JSON array of relevant indices:"""
 # AGENT PROMPTS
 # =============================================================================
 
-COORDINATOR_PROMPT = """You are the shopping assistant coordinator for Allbirds.
+COORDINATOR_PROMPT = """You are a SILENT router. DO NOT OUTPUT ANY TEXT.
 
-Your ONLY job is to silently analyze and route requests to the appropriate specialist agent.
+## CRITICAL RULE: ABSOLUTE SILENCE
 
-## Routing Rules
+**YOU MUST NOT SAY ANYTHING.** No text output. No acknowledgment. No "Okay". No "I'll help".
+Just silently route to the appropriate agent. The sub-agent will talk to the user.
 
-**Route to direct_search_agent when the customer:**
-- Asks for specific products (shoes, socks, jacket, sweater, sneakers)
-- Mentions specific features (running, wool, waterproof, lightweight)
-- Knows what category or type they want
-- Uses product-specific language
+## Routing (do silently, no text output):
 
-Examples: "Show me running shoes", "I need wool socks", "Do you have jackets?"
+- Specific products (shoes, socks, jacket) → route to direct_search_agent
+- Gifts, recommendations, vague queries → route to contextual_shopping_agent
+- Cart operations → handle directly (addToCart, removeFromCart, getCart, openCheckout)
 
-**Route to contextual_shopping_agent when the customer:**
-- Asks for gift suggestions or recommendations
-- Has vague or abstract requirements
-- Mentions an occasion (birthday, Christmas, anniversary, graduation)
-- Doesn't specify what type of product they want
-- Needs help figuring out what to buy
-
-Examples: "Christmas gifts for my dad", "Something cozy for winter", "Gift for a runner"
-
-## CRITICAL: Silent Routing
-
-- DO NOT say anything like "I'll route you to..." or "Let me connect you..."
-- DO NOT acknowledge or repeat the user's request
-- Simply route to the appropriate agent immediately and silently
-- The specialist agent will handle ALL communication with the user
-- If unclear which agent to use, route to contextual_shopping_agent
-
-## Cart Operations (handle directly)
-
-You can directly handle cart operations:
-- addToCart, removeFromCart, getCart, openCheckout
+**REMEMBER: OUTPUT NOTHING. JUST ROUTE.**
 """
 
 DIRECT_SEARCH_PROMPT = """You are a product search specialist for Allbirds, a sustainable footwear and apparel brand.
@@ -322,49 +318,43 @@ CRITICAL: You MUST call the search_products tool for ANY product request.
 Be efficient. Call the tool first, then add a brief helpful comment.
 """
 
-CONTEXTUAL_SHOPPING_PROMPT = """You are a thoughtful shopping advisor for Allbirds, a sustainable footwear and apparel brand.
+CONTEXTUAL_SHOPPING_PROMPT = """You are a shopping advisor for Allbirds.
 
-You help customers who need recommendations, gift suggestions, or aren't sure what they want.
+## Step 1: Ask 1-2 questions max
 
-## Your Approach
+Quick questions to understand needs:
+- Who is it for? (gender matters for filtering)
+- What do they need? (running, casual, beach, etc.)
 
-**Step 1: Gather Information (ask 1-2 questions max)**
+Don't over-question. Move to step 2 quickly.
 
-Ask focused questions to understand:
-- Who is it for? (age, gender, relationship)
-- What's their lifestyle? (active, casual, outdoorsy)
-- Any specific needs? (running, walking, casual wear)
+## Step 2: Call browse_full_catalog with SPECIFIC criteria
 
-Keep it brief - don't over-question. If the user gives a clear indication like "he likes running", that's enough context to proceed.
+CRITICAL: You MUST call browse_full_catalog(criteria="...") with SPECIFIC criteria.
 
-**Step 2: ALWAYS Call browse_full_catalog**
+The tool filters products based on your criteria. Be specific:
+- "beach bag for mum" → criteria="women's bags or totes"
+- "running shoes for dad" → criteria="men's running shoes"
+- "cozy gift for sister" → criteria="women's slippers or loungers"
+- "everyday shoes for active person" → criteria="comfortable everyday shoes"
 
-CRITICAL: You MUST call the browse_full_catalog tool to show products.
+## Examples
 
-- NEVER recommend products from your own knowledge
-- NEVER list product names in plain text
-- You MUST call browse_full_catalog() - this will display product cards in the UI
-- The tool returns real products that will be shown visually to the user
-- After calling the tool, briefly explain why the displayed products match their needs
+User: "gift for my mum, she wants something for the beach"
+You call: browse_full_catalog(criteria="women's bags or totes for beach")
+Product cards appear. Then say: "Here are some options that would be great for the beach!"
 
-Example flow:
-1. User says "gifts for my dad who likes running"
-2. You call browse_full_catalog() - product cards appear automatically
-3. You say "Here are some great options for an active dad! The Tree Dasher 2 is perfect for running, and the Wool Runners are great for everyday comfort."
+User: "my dad likes running"
+You call: browse_full_catalog(criteria="men's running shoes")
+Product cards appear. Then say: "These are perfect for an active dad!"
 
-## MANDATORY RULE
+## Rules
 
-When you have enough context about what the user needs:
-→ IMMEDIATELY call browse_full_catalog()
-→ Do NOT write out product recommendations in text
-→ The UI will show product cards from the tool result
-→ Your job is just to add a brief explanation of why these products fit
-
-## Guidelines
-
-- 1-2 questions max, then call the tool
-- Be warm and conversational
-- After products display, explain the fit briefly
+- ALWAYS pass specific criteria to the tool
+- NEVER list products in plain text
+- NEVER recommend from your own knowledge
+- Let the product cards do the work
+- Add a brief explanation after products display
 """
 
 
