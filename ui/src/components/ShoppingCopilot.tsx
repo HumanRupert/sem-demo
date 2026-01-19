@@ -446,7 +446,13 @@ function parseSearchResults(result: unknown): Product[] {
       }
     }
 
-    console.log("[parseSearchResults] Found products array:", products.length, products);
+    console.log("[parseSearchResults] Found products array:", products.length);
+    // Log first product's availabilityMatrix for debugging
+    if (products.length > 0) {
+      const firstProduct = products[0] as Record<string, unknown>;
+      console.log("[parseSearchResults] First product keys:", Object.keys(firstProduct));
+      console.log("[parseSearchResults] First product availabilityMatrix:", firstProduct.availabilityMatrix);
+    }
 
     // Map products to our Product interface
     // Shopify Storefront MCP response fields:
@@ -564,7 +570,7 @@ function parseSearchResults(result: unknown): Product[] {
         }) : undefined,
       };
 
-      console.log("[parseSearchResults] Mapped product:", mapped.title, "imageUrl:", mapped.imageUrl, "productUrl:", mapped.productUrl);
+      console.log("[parseSearchResults] Mapped product:", mapped.title, "availabilityMatrix:", mapped.availabilityMatrix?.length || 0, "items");
       return mapped;
     }).filter((p) => p.id || p.title);
   } catch (e) {
