@@ -446,7 +446,7 @@ def seed_database():
     if completed_checkouts:
         disputed = completed_checkouts[0]
         disputed.status = "disputed"
-        disputed.dispute_status = "under_review"
+        disputed.dispute_status = "opened"
         disputed.dispute_opened_at = disputed.created_at + timedelta(days=random.randint(1, 5))
 
         # Update agent stats
