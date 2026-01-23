@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface MetricsCardProps {
   title: string;
-  value: string | number;
+  value: string | number | React.ReactNode;
   subtitle?: string;
   trend?: number;
   trendLabel?: string;

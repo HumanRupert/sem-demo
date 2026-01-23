@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import {
   AreaChart,
   Area,
@@ -9,6 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { AnimatedCurrency, AnimatedNumber, AnimatedPercent } from '@/components/dashboard/AnimatedNumber';
 
 interface OverviewMetrics {
   total_checkouts: number;
@@ -119,7 +121,7 @@ export default function AnalyticsPage() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">Analytics</h1>
+        <h1 className="text-xl font-semibold text-gradient">Analytics</h1>
         <div className="flex bg-gray-100 rounded-lg p-1">
           {PERIODS.map((p) => (
             <button
@@ -140,40 +142,65 @@ export default function AnalyticsPage() {
       {/* Key Metrics */}
       {overview && (
         <div className="grid grid-cols-4 gap-6">
-          <div className="space-y-1">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-1"
+          >
             <p className="text-sm text-gray-500">Revenue</p>
             <p className="text-3xl font-semibold text-gray-900 tracking-tight">
-              {formatFullCurrency(overview.total_revenue)}
+              <AnimatedCurrency value={overview.total_revenue} />
             </p>
             <p className="text-sm text-gray-400">{overview.completed_checkouts} orders</p>
-          </div>
-          <div className="space-y-1">
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.05 }}
+            className="space-y-1"
+          >
             <p className="text-sm text-gray-500">Avg Order</p>
             <p className="text-3xl font-semibold text-gray-900 tracking-tight">
-              {formatFullCurrency(overview.average_order_value)}
+              <AnimatedCurrency value={overview.average_order_value} />
             </p>
             <p className="text-sm text-gray-400">per checkout</p>
-          </div>
-          <div className="space-y-1">
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="space-y-1"
+          >
             <p className="text-sm text-gray-500">Completion</p>
             <p className="text-3xl font-semibold text-gray-900 tracking-tight">
-              {overview.completion_rate.toFixed(1)}%
+              <AnimatedPercent value={overview.completion_rate} />
             </p>
             <p className="text-sm text-gray-400">{overview.total_checkouts} total</p>
-          </div>
-          <div className="space-y-1">
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.15 }}
+            className="space-y-1"
+          >
             <p className="text-sm text-gray-500">Disputes</p>
             <p className="text-3xl font-semibold text-gray-900 tracking-tight">
-              {overview.dispute_rate.toFixed(1)}%
+              <AnimatedPercent value={overview.dispute_rate} />
             </p>
             <p className="text-sm text-gray-400">of completed</p>
-          </div>
+          </motion.div>
         </div>
       )}
 
       {/* Revenue Chart */}
       {trends.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+          className="bg-white border border-gray-200 rounded-xl p-6"
+        >
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-sm font-medium text-gray-900">Revenue</h2>
             <span className="text-xs text-gray-400">Last {getDays(period)} days</span>
@@ -233,12 +260,17 @@ export default function AnalyticsPage() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Checkouts Chart */}
       {trends.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.3 }}
+          className="bg-white border border-gray-200 rounded-xl p-6"
+        >
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-sm font-medium text-gray-900">Checkouts</h2>
             <div className="flex items-center gap-4 text-xs">
@@ -314,18 +346,23 @@ export default function AnalyticsPage() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Modality Split */}
       {overview && (
         <div className="grid grid-cols-2 gap-6">
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.4 }}
+            className="bg-white border border-gray-200 rounded-xl p-6"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Human Present</p>
                 <p className="text-2xl font-semibold text-gray-900 mt-1">
-                  {overview.human_present_count}
+                  <AnimatedNumber value={overview.human_present_count} />
                 </p>
               </div>
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
@@ -341,13 +378,18 @@ export default function AnalyticsPage() {
             <p className="text-xs text-gray-400 mt-2">
               {((overview.human_present_count / Math.max(overview.total_checkouts, 1)) * 100).toFixed(0)}% of transactions
             </p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.45 }}
+            className="bg-white border border-gray-200 rounded-xl p-6"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Autonomous</p>
                 <p className="text-2xl font-semibold text-gray-900 mt-1">
-                  {overview.human_not_present_count}
+                  <AnimatedNumber value={overview.human_not_present_count} />
                 </p>
               </div>
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
@@ -363,13 +405,18 @@ export default function AnalyticsPage() {
             <p className="text-xs text-gray-400 mt-2">
               {((overview.human_not_present_count / Math.max(overview.total_checkouts, 1)) * 100).toFixed(0)}% of transactions
             </p>
-          </div>
+          </motion.div>
         </div>
       )}
 
       {/* Agent Performance */}
       {agentPerformance.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.5 }}
+          className="bg-white border border-gray-200 rounded-xl overflow-hidden"
+        >
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-sm font-medium text-gray-900">Agent Performance</h2>
           </div>
@@ -414,7 +461,7 @@ export default function AnalyticsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </motion.div>
       )}
     </div>
   );
